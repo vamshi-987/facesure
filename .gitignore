@@ -1,0 +1,29 @@
+c# =====================
+# Node / React (client)
+# =====================
+client/node_modules/
+client/dist/
+client/.vite/
+client/.env
+
+# =====================
+# Python / FastAPI (server)
+# =====================
+server/venv/
+server/__pycache__/
+server/**/*.pyc
+server/.env
+
+# =====================
+# OS & Editor
+# =====================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =====================
+# Logs
+# =====================
+*.log
+
