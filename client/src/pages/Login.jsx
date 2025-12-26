@@ -56,26 +56,34 @@ export default function Login() {
     scrollToAlert();
 
     setTimeout(() => {
-      const id = userId.toUpperCase();
-      const isStudent = /^\d{12}$/.test(id);
+    switch (role) {
 
-      if (role === "SUPER_ADMIN" || id.includes("A")) {
+      case "SUPER_ADMIN":
+      case "ADMIN":            // ✅ ADMIN also goes to super-admin
         navigate("/super-admin");
-      } else if (isStudent) {
+        break;
+
+      case "STUDENT":
         if (!face_id) {
           navigate("/student/register-face");
         } else {
           navigate("/student");
         }
-      } else if (id.includes("H")) {
+        break;
+
+      case "HOD":
         navigate("/hod");
-      } else if (id.includes("G")) {
+        break;
+
+      case "GUARD":
         navigate("/guard");
-      } else {
-        setMsg("Unauthorized ID format.");
+        break;
+
+      default:
+        setMsg("Unauthorized role.");
         setAlertType("error");
         setLoading(false);
-      }
+    }
     }, 800);
   };
 

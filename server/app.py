@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+# from fastapi.staticfiles import StaticFiles
 import socket
 
 from extensions.cors import init_cors
@@ -27,7 +27,7 @@ app = FastAPI(title="FaceAuth System", version="2.0")
 init_cors(app)
 init_exception_handlers(app)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ---------------------------------------------------------
 #  ROUTES
