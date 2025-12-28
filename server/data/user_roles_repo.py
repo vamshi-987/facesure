@@ -18,3 +18,9 @@ def delete_user_role(user_id: str, session=None):
         {"user_id": user_id},
         session=session
     )
+
+def delete_specific_role(user_id: str, role_id: str, session=None):
+    return user_roles.delete_many(
+        {"user_id": user_id, "role_id": role_id},
+        session=session
+    )

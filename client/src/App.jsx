@@ -11,6 +11,9 @@ import HODDashboard from "./pages/HODDashboard.jsx";
 import GuardDashboard from "./pages/GuardDashboard.jsx";
 import GuardVerifyFace from "./pages/GuardVerifyFace.jsx";
 import Profile from "./pages/Profile.jsx";
+import MentorDashboard from "./pages/MentorDashboard.jsx";
+import StudentHistory from "./pages/StudentHistory.jsx";
+import ManageHODAssignments from "./components/ManageHODAssignments.jsx";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const token = localStorage.getItem("access_token");
@@ -65,6 +68,15 @@ export default function App() {
         />
 
         <Route
+          path="/student/history"
+          element={
+            <ProtectedRoute allowedRoles={["STUDENT"]}>
+              <StudentHistory />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/super-admin"
           element={
             <ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN"]}>
@@ -72,6 +84,15 @@ export default function App() {
             </ProtectedRoute>
           }
         >
+        <Route
+          path="/super-admin/assign-hod"
+          element={
+            <ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN"]}>
+              <ManageHODAssignments />
+            </ProtectedRoute>
+          }
+        />
+
           <Route index element={<SuperAdminDashboard />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
@@ -95,6 +116,42 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/mentor"
+          element={
+            <ProtectedRoute allowedRoles={["MENTOR"]}>
+              <MentorDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+                  path="/guard/profile"
+                  element={
+                    <ProtectedRoute allowedRoles={["GUARD"]}>
+                      <Profile />
+                    </ProtectedRoute>
+                  }
+                />
+
+           <Route
+                  path="/hod/profile"
+                  element={
+                    <ProtectedRoute allowedRoles={["HOD"]}>
+                      <Profile />
+                    </ProtectedRoute>
+                  }
+                />
+
+             <Route
+                  path="/student/profile"
+                  element={
+                    <ProtectedRoute allowedRoles={["STUDENT"]}>
+                      <Profile />
+                    </ProtectedRoute>
+                  }
+                />
 
         <Route
           path="/guard/verify-face/:studentId/:requestId"

@@ -50,8 +50,63 @@ def delete_student_mappings(student_id: str, session=None):
     )
 
 
-def delete_hod_mappings(hod_id: str, session=None):
+def delete_hod_mappings(hod_id, year, course, college, session=None):
     return student_hod.delete_many(
-        {"hod_id": hod_id},
+        {
+            "hod_id": hod_id,
+            "year": year,
+            "course": course,
+            "college": college
+        },
+        session=session
+    )
+
+# data/student_hod_repo.py
+def get_hod_assignments(hod_id):
+    return student_hod.aggregate([
+        {
+            "$group": {
+                "_id": {
+                    "college": "$college",
+                    "year": "$year",
+                    "course": "$course"
+                }
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "college": "$_id.college",
+                "year": "$_id.year",
+                "course": "$_id.course"
+            }
+        }
+    ])
+
+def delete_hod_mappings_for_scope(
+    hod_id: str,
+    college: str,
+    year: int,
+    course: str,
+    session=None
+):
+    """
+    Deletes ONLY the HOD → student mappings
+    for a specific (college, year, course) scope.
+
+    ✔ Safe
+    ✔ Scoped
+    ✔ Does NOT affect other HOD assignments
+    """
+
+    query = {
+        "hod_id": hod_id,
+        "college": college,
+        "year": year,
+        "course": course
+    }
+
+    return student_hod.delete_many(
+        query,
         session=session
     )

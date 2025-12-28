@@ -18,6 +18,7 @@ export default function SuperAdminDashboard() {
     { label: "Delete User", icon: TrashIcon, action: "delete" },
     { label: "Requests", icon: InboxIcon, action: "requests" },
     { label: "Update Password", icon: KeyIcon, action: "password" },
+    { label: "Assign HODs", icon: UserGroupIcon, action: "assign-hod" },
   ];
 
   return (

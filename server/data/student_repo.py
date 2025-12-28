@@ -43,3 +43,23 @@ def promote_students_year_repo(year: str, college: str, new_year: str, session=N
 def filter_students(filters: dict):
     query = {k: v for k, v in filters.items() if v is not None}
     return list(students.find(query).sort("_id", 1))
+
+
+def get_students_by_college_year_course_section(
+    college: str,
+    year: int,
+    course: str,
+    section: str
+):
+    """
+    Used for mentor mapping.
+    Returns students ordered by roll_no ASC.
+    """
+    return list(
+        students.find({
+            "college": college,
+            "year": year,
+            "course": course,
+            "section": section
+        }).sort("_id", 1)
+    )

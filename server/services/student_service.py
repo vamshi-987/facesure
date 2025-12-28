@@ -19,7 +19,7 @@ from data.roles_repo import get_role_by_name
 from data.faces_repo import get_face_by_user, delete_face, create_face_doc
 from data.face_vectors_repo import create_vector, delete_vector, search_similar_faces
 from data.student_hod_repo import map_student_to_hod, delete_student_mappings
-from data.hod_repo import get_all_hods
+from data.faculty_repo import get_all_hods
 from extensions.mongo import client, db
 from services.validators import validate_college
 from services.face_service import decode_image, extract_embedding_and_landmarks, DUPLICATE_HIGH

@@ -1,192 +1,117 @@
+# services/hod_assignment_service.py
 from datetime import datetime
-from pymongo.errors import PyMongoError
-from fastapi import HTTPException, status
-
-from security.passwords import hash_password
-from schemas.hod_schema import HOD as HODSchema
-
-# We import it and alias it to 'repo_get_hod' to be 100% safe
-from data.hod_repo import (
-    get_hod_by_id as repo_get_hod,
-    get_all_hods as repo_get_all,
-    update_hod as repo_update_hod,
-    delete_hod as repo_delete_hod,
-    filter_hods as filter_hods_repo
-)
-
-from data.student_repo import get_all_students
-from data.student_hod_repo import (
-    map_student_to_hod,
-    delete_hod_mappings
-)
-
-from data.roles_repo import get_role_by_name
-from data.faces_repo import get_face_by_user, delete_face
-from data.face_vectors_repo import delete_vector
-
+from fastapi import HTTPException
 from extensions.mongo import client, db
-from services.validators import validate_college
 from core.global_response import success
 
-# ==========================================================
-# REGISTER HOD
-# ==========================================================
-def register_hod(hod_id, name, phone, years, college, courses, password):
-    validate_college(college)
+from data.faculty_repo import get_faculty_by_id
+from data.student_hod_repo import (
+    map_student_to_hod,
+    delete_hod_mappings_for_scope,
+    get_hod_assignments
+)
+from data.hod_mentor_repo import (
+    get_hod_for_year_course,
+    delete_hod_mentor_mappings_for_scope,
+    create_hod_mentor_mapping
+)
+from data.roles_repo import get_role_by_name
+from data.user_roles_repo import assign_role, delete_specific_role
 
-    if repo_get_hod(hod_id):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"HOD with ID {hod_id} is already registered"
-        )
-    
-    hod_doc = HODSchema(
-        _id=hod_id,
-        name=name,
-        phone=phone,
-        years=years,
-        college=college,
-        courses=courses,
-        password_hash=hash_password(password)
-    ).model_dump(by_alias=True)
 
-    try:
-        with client.start_session() as s:
-            with s.start_transaction():
-                db["hods"].insert_one(hod_doc, session=s)
-                role_data = get_role_by_name("HOD")
-                db["user_roles"].insert_one({
-                    "user_id": hod_id,
-                    "role_id": role_data["_id"],
-                    "assigned_at": datetime.utcnow()
-                }, session=s)
-                students = db["students"].find({"college": hod_doc["college"]},session=s)
+def assign_hod_service(payload):
+    faculty_id = payload.faculty_id
+    college = payload.college
+    years = payload.years
+    courses = payload.courses
 
-                for st in students:
-                    if (
-                        st["year"] in hod_doc["years"]
-                        and st["course"] in hod_doc["courses"]
-                    ):
+    faculty = get_faculty_by_id(faculty_id)
+    if not faculty:
+        raise HTTPException(404, "Faculty not found")
+
+    hod_role = get_role_by_name("HOD")
+    faculty_role = get_role_by_name("FACULTY")
+
+    with client.start_session() as s:
+        with s.start_transaction():
+
+            for year in years:
+                for course in courses:
+
+                    # 🔴 REMOVE OLD HOD (ONLY THIS SCOPE)
+                    old = get_hod_for_year_course(college, year, course)
+                    if old:
+                        old_hod = old["hod_id"]
+
+                        delete_hod_mappings_for_scope(
+                            old_hod, college, year, course, session=s
+                        )
+                        delete_hod_mentor_mappings_for_scope(
+                            old_hod, college, year, course, session=s
+                        )
+
+                        delete_specific_role(
+                            old_hod, hod_role["_id"], session=s
+                        )
+                        assign_role(
+                            old_hod, faculty_role["_id"], session=s
+                        )
+
+                    # 🟢 ASSIGN HOD ROLE (IDEMPOTENT)
+                    delete_specific_role(
+                        faculty_id, faculty_role["_id"], session=s
+                    )
+                    assign_role(
+                        faculty_id, hod_role["_id"], session=s
+                    )
+
+                    # 🟢 MAP STUDENTS (ONLY SELECTED COHORT)
+                    students = db["students"].find(
+                        {
+                            "college": college,
+                            "year": year,
+                            "course": course
+                        },
+                        session=s
+                    )
+
+                    for st in students:
                         map_student_to_hod(
-                            st["_id"],
-                            hod_doc["_id"],
-                            st["year"],
-                            st["course"],
-                            st["college"],
+                            student_id=st["_id"],
+                            hod_id=faculty_id,
+                            college=college,
+                            year=year,
+                            course=course,
                             session=s
                         )
 
-    except PyMongoError:
-        raise HTTPException(status_code=500, detail="HOD registration failed")
+                    # 🟢 MAP MENTORS (DERIVED FROM STUDENT_MENTOR)
+                    mentor_ids = db["student_mentor_mapping"].distinct(
+                        "mentor_id",
+                        {
+                            "college": college,
+                            "year": year,
+                            "course": course
+                        }
+                    )
 
-    return success("HOD registered successfully", {"hod_id": hod_id})
+                    for mid in mentor_ids:
+                        create_hod_mentor_mapping(
+                            {
+                                "hod_id": faculty_id,
+                                "mentor_id": mid,
+                                "college": college,
+                                "year": year,
+                                "course": course,
+                                "created_at": datetime.utcnow()
+                            },
+                            session=s
+                        )
 
-# ==========================================================
-# GET HOD BY ID (The one the Route calls)
-# ==========================================================
-def service_get_hod_by_id(hod_id: str):
-    # Call the REPO directly
-    hod = repo_get_hod(hod_id)
-    if not hod:
-        raise HTTPException(status_code=404, detail="HOD not found")
-    
-    hod.pop("password_hash", None)
-    return success("HOD profile fetched", hod)
+    return success("HOD assigned successfully")
 
-# ==========================================================
-# UPDATE HOD
-# ==========================================================
-def update_hod_service(hod_id, updates):
-    hod = repo_get_hod(hod_id)
-    if not hod:
-        raise HTTPException(status_code=404, detail="HOD not found")
-
-    # Fields that affect student–HOD mapping
-    sensitive_fields = {"years", "courses", "college"}
-    needs_remap = any(f in updates for f in sensitive_fields)
-
-    # Password handling
-    if "password" in updates:
-        updates["password_hash"] = hash_password(updates.pop("password"))
-
-    # Ensure years are int
-    if "years" in updates and updates["years"] is not None:
-        updates["years"] = [int(y) for y in updates["years"]]
-
-    try:
-        with client.start_session() as s:
-            with s.start_transaction():
-
-                # 1️⃣ Update HOD
-                repo_update_hod(hod_id, updates, session=s)
-
-                # 2️⃣ Remap students if required
-                if needs_remap:
-                    # Remove old mappings
-                    delete_hod_mappings(hod_id, session=s)
-
-                    # Reload updated HOD
-                    updated_hod = repo_get_hod(hod_id)
-
-                    # Recreate mappings
-                    students = get_all_students()
-                    for stu in students:
-                        if (
-                            stu["college"] == updated_hod["college"]
-                            and stu["year"] in updated_hod["years"]
-                            and stu["course"] in updated_hod["courses"]
-                        ):
-                            map_student_to_hod(
-                                stu["_id"],
-                                hod_id,
-                                stu["year"],
-                                stu["course"],
-                                stu["college"],
-                                session=s
-                            )
-
-    except PyMongoError:
-        raise HTTPException(status_code=500, detail="HOD update failed")
-
-    final = repo_get_hod(hod_id)
-    final.pop("password_hash", None)
-    return success("HOD updated successfully", final)
-
-
-# ==========================================================
-# DELETE HOD
-# ==========================================================
-def delete_hod_service(hod_id):
-    old = get_face_by_user(hod_id)
-    vec = old.get("vector_ref") if old else None
-    face_id = old.get("_id") if old else None
-
-    try:
-        with client.start_session() as s:
-           with s.start_transaction():
-            if vec: delete_vector(vec, session=s)
-            if face_id: delete_face(face_id, session=s)
-
-            repo_delete_hod(hod_id, session=s)
-            delete_hod_mappings(hod_id, session=s)
-            db["user_roles"].delete_many({"user_id": hod_id}, session=s)
-
-    except PyMongoError:
-        raise HTTPException(status_code=500, detail="Failed to delete HOD")
-
-    delete_hod_mappings(hod_id)
-    return success("HOD deleted successfully")
-
-# ==========================================================
-# OTHER SERVICES
-# ==========================================================
-def service_get_all_hods():
-    return success("All HODs", repo_get_all())
-
-def filter_hods_service(filters: dict):
-    return success("Filtered HODs", filter_hods_repo(filters))
-
-def service_get_hods_for_student(student_id):
-    from data.student_hod_repo import get_hods_for_student
-    return success("HOD list for student", get_hods_for_student(student_id))
-
+def get_hod_assignments_service(hod_id):
+    return success(
+        "HOD assignments",
+        list(get_hod_assignments(hod_id))
+    )

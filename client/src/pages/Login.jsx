@@ -79,6 +79,10 @@ export default function Login() {
         navigate("/guard");
         break;
 
+      case "MENTOR":
+        navigate("/mentor");
+        break;  
+
       default:
         setMsg("Unauthorized role.");
         setAlertType("error");

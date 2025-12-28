@@ -148,7 +148,7 @@ def get_pending_requests_for_hod(hod_id: str):
     return list(
         requests.find({
             "student_id": {"$in": student_ids},
-            "status": {"$in": ["REQUESTED", "PENDING"]},
+            "status": {"$in": ["APPROVED_BY_MENTOR", "PENDING_HOD_APPROVAL"]},
             "hod_id": None
         })
     )
@@ -170,7 +170,7 @@ def has_active_request(student_id: str, session=None) -> bool:
     return requests.find_one(
         {
             "student_id": student_id,
-            "status": {"$in": ["REQUESTED", "PENDING", "APPROVED"]}
+            "status": {"$in": ["REQUESTED", "PENDING_MENTOR_APPROVAL", "APPROVED", "PENDING_HOD_APPROVAL","APPROVED_BY_MENTOR"]}
         },
         session=session
     ) is not None
@@ -198,4 +198,24 @@ def delete_request_if_requested(request_id: str, session=None):
             "status": "REQUESTED"
         },
         session=session
+    )
+
+def auto_mark_approved_not_left():
+    """
+    Marks requests as APPROVED_NOT_LEFT if:
+    - Approved by HOD
+    - Student did not leave campus
+    - Approval happened before today (IST safe)
+    """
+    start, _ = ist_today_range_utc()
+
+    return requests.update_many(
+        {
+            "status": "APPROVED",
+            "approval_time": {"$lt": start},
+            "left_time": {"$exists": False}
+        },
+        {
+            "$set": {"status": "APPROVED_NOT_LEFT"}
+        }
     )

@@ -6,9 +6,10 @@ from data.refresh_token_repo import store_refresh_token, revoke_refresh_token
 
 from data.superadmin_repo import get_superadmin_by_id
 from data.admin_repo import get_admin_by_id
-from data.hod_repo import get_hod_by_id
 from data.guards_repo import get_guard_by_id
 from data.student_repo import get_student_by_id
+from data.faculty_repo import get_faculty_by_id
+
 
 from data.user_roles_repo import get_user_role
 from data.roles_repo import get_role_by_id
@@ -19,8 +20,8 @@ from core.global_response import success
 USER_LOOKUP_ORDER = [
     get_superadmin_by_id,
     get_admin_by_id,
-    get_hod_by_id,
     get_guard_by_id,
+    get_faculty_by_id,
     get_student_by_id,
 ]
 

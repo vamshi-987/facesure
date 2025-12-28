@@ -16,6 +16,8 @@ from routes.student_routes import router as student_router
 from routes.hod_routes import router as hod_router
 from routes.guard_routes import router as guard_router
 from routes.request_routes import router as request_router
+from routes.mentor_mapping_routes import router as mentor_mapping_router
+from routes.faculty_routes import router as faculty_router
 
 app = FastAPI(title="FaceAuth System", version="2.0")
 
@@ -40,6 +42,8 @@ app.include_router(student_router)
 app.include_router(hod_router)
 app.include_router(guard_router)
 app.include_router(request_router)
+app.include_router(mentor_mapping_router)
+app.include_router(faculty_router)
 app.include_router(admin_router, prefix="/super_admin") # Handles /super_admin/...
 
 
