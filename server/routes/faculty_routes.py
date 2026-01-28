@@ -44,7 +44,7 @@ def create_faculty(
 @router.get("/{faculty_id}")
 def get_faculty(
     faculty_id: str,
-    _=Depends(require_roles("SUPER_ADMIN", "ADMIN", "FACULTY","HOD"))
+    _=Depends(require_roles("SUPER_ADMIN", "ADMIN", "FACULTY","HOD", "MENTOR"))
 ):
     return service_get_faculty_by_id(faculty_id)
 

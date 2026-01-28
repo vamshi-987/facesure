@@ -30,7 +30,7 @@ from data.student_repo import get_student_by_id
 from data.faces_repo import get_face_by_user
 
 # ==========================================================
-# STATUS CONSTANTS (BACKWARD SAFE)
+# STATUS CONSTANTS
 # ==========================================================
 REQUESTED = "REQUESTED"
 
@@ -104,7 +104,7 @@ def create_new_request(student_id: str, reason: str):
                     raise HTTPException(404, "No HOD assigned")
 
                 doc = {
-                    "student_id": student["_id"],
+                    "student_id": str(student["_id"]),  # Ensure string
                     "student_name": student["name"],
                     "year": student["year"],
                     "course": student["course"],
@@ -116,7 +116,7 @@ def create_new_request(student_id: str, reason: str):
 
                     "mentor_id": None,
                     "mentor_name": None,
-                    "mentor_comment": None,
+                    "mentor_remark": None,
 
                     "hod_id": None,
                     "hod_name": None,
@@ -142,41 +142,66 @@ def create_new_request(student_id: str, reason: str):
 def service_get_mentor_pending_requests(mentor_id: str):
     try:
         student_ids = get_students_for_mentor(mentor_id)
+        print(f"[MENTOR {mentor_id}] Students assigned: {student_ids}")
+        print(f"[MENTOR {mentor_id}] Student IDs types: {[type(sid).__name__ for sid in student_ids]}")
+
+        if not student_ids:
+            print(f"[MENTOR {mentor_id}] No students found")
+            return success("Mentor pending requests", [])
+
+        # Convert to strings for consistent comparison
+        student_ids_str = [str(sid) for sid in student_ids]
 
         reqs = list(
             get_all_requests()
         )
+        print(f"[MENTOR {mentor_id}] Total requests in DB: {len(reqs)}")
+        if reqs:
+            print(f"[MENTOR {mentor_id}] Request statuses: {set(r.get('status') for r in reqs)}")
+            print(f"[MENTOR {mentor_id}] Sample request: {reqs[0]}")
 
         result = []
 
         for r in reqs:
-            if r["student_id"] not in student_ids:
+            student_id_in_req = str(r["student_id"])
+            print(f"[MENTOR {mentor_id}] Checking request: student_id={student_id_in_req}, status={r['status']}")
+            
+            if student_id_in_req not in student_ids_str:
+                print(f"[MENTOR {mentor_id}] Student {student_id_in_req} not in assigned students. Assigned: {student_ids_str}")
                 continue
 
+            print(f"[MENTOR {mentor_id}] ✅ Student {student_id_in_req} IS assigned to mentor")
+
             if r["status"] == REQUESTED:
+                print(f"[MENTOR {mentor_id}] Converting REQUESTED to PENDING_MENTOR")
                 update_request(r["_id"], {"status": PENDING_MENTOR})
                 r["status"] = PENDING_MENTOR
 
             if r["status"] in [PENDING_MENTOR]:
+                print(f"[MENTOR {mentor_id}] Adding request to result")
                 r["_id"] = str(r["_id"])
                 face = get_face_by_user(r["student_id"])
                 r["student_face"] = (
                     base64.b64encode(face["image_data"]).decode()
                     if face else None
                 )
+                r = _stringify_ids(r)
                 result.append(r)
 
+        print(f"[MENTOR {mentor_id}] Returning {len(result)} requests")
         return success("Mentor pending requests", result)
 
     except Exception as e:
         print("MENTOR FETCH ERROR:", e)
+        import traceback
+        traceback.print_exc()
         raise HTTPException(500, "Failed to fetch mentor requests")
 
 
 # ==========================================================
 # MENTOR – APPROVE / REJECT (WITH COMMENT)
 # ==========================================================
-def mentor_approve_request(request_id, mentor_id, mentor_name, remark):
+def mentor_approve_request(request_id, mentor_id, mentor_name, remark, parent_contacted=False):
     req = get_request_by_id(request_id)
 
     if not req or req["status"] != PENDING_MENTOR:
@@ -187,13 +212,14 @@ def mentor_approve_request(request_id, mentor_id, mentor_name, remark):
         "mentor_id": mentor_id,
         "mentor_name": mentor_name,
         "mentor_remark": remark,   # ✅ aligned
+        "parent_contacted": parent_contacted,
         "mentor_action_time": datetime.utcnow()
     })
 
     return success("Approved by mentor")
 
 
-def mentor_reject_request(request_id, mentor_id, mentor_name, remark):
+def mentor_reject_request(request_id, mentor_id, mentor_name, remark, parent_contacted=False):
     req = get_request_by_id(request_id)
 
     if not req or req["status"] != PENDING_MENTOR:
@@ -204,6 +230,7 @@ def mentor_reject_request(request_id, mentor_id, mentor_name, remark):
         "mentor_id": mentor_id,
         "mentor_name": mentor_name,
         "mentor_remark": remark,   # ✅ aligned
+        "parent_contacted": parent_contacted,
         "mentor_action_time": datetime.utcnow()
     })
 

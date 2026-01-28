@@ -15,6 +15,8 @@ def init_bootstrap():
         create_role_if_not_exists("HOD")
         create_role_if_not_exists("GUARD")
         create_role_if_not_exists("STUDENT")
+        create_role_if_not_exists("FACULTY")
+        create_role_if_not_exists("MENTOR")
 
         for sa in Config.SUPERADMINS:
             existing = get_superadmin_by_id(sa["_id"])

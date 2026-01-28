@@ -33,10 +33,10 @@ class Request(BaseModel):
 
     status: Literal[
         "REQUESTED",
-        "PENDING_MENTOR_APPROVAL",
+        "PENDING_MENTOR",
         "APPROVED_BY_MENTOR",
         "REJECTED_BY_MENTOR",
-        "PENDING_HOD_APPROVAL",
+        "PENDING_HOD",
         "UNCHECKED",
         "APPROVED",
         "REJECTED",

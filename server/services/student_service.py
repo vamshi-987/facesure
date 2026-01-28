@@ -18,7 +18,8 @@ from data.student_repo import (
 from data.roles_repo import get_role_by_name
 from data.faces_repo import get_face_by_user, delete_face, create_face_doc
 from data.face_vectors_repo import create_vector, delete_vector, search_similar_faces
-from data.student_hod_repo import map_student_to_hod, delete_student_mappings
+from data.student_mentor_repo import map_student_to_mentor, get_existing_mentor_ids_for_students, get_mentors_for_scope
+from data.student_hod_repo import map_student_to_hod
 from data.faculty_repo import get_all_hods
 from extensions.mongo import client, db
 from services.validators import validate_college
@@ -68,6 +69,19 @@ def register_student(student_id, name, phone, year, course, section, college, pa
                         college,
                         session=s                   # 🔑 pass session
                     )
+
+            # ✅ CREATE STUDENT–MENTOR MAPPINGS
+            mentor_ids = get_mentors_for_scope(college, year, course, section)
+            for mentor_id in mentor_ids:
+                map_student_to_mentor(
+                    student_id,
+                    mentor_id,
+                    college,
+                    year,
+                    course,
+                    section,
+                    session=s
+                )
 
     except PyMongoError:
         raise HTTPException(status_code=500, detail="Student creation failed")

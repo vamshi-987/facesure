@@ -127,6 +127,24 @@ export default function App() {
         />
 
         <Route
+                  path="/mentor/profile"
+                  element={
+                    <ProtectedRoute allowedRoles={["MENTOR"]}>
+                      <Profile />
+                    </ProtectedRoute>
+                  }
+                />
+
+        <Route
+          path="/mentor/profile"
+          element={
+            <ProtectedRoute allowedRoles={["MENTOR"]}>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
                   path="/guard/profile"
                   element={
                     <ProtectedRoute allowedRoles={["GUARD"]}>

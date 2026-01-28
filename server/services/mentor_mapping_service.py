@@ -99,7 +99,7 @@ def assign_mentors_service(payload):
                 )
 
                 mappings.append({
-                    "student_id": student["_id"],
+                    "student_id": str(student["_id"]),  # Ensure string
                     "mentor_id": mentor_id,
                     "college": payload.college,
                     "year": payload.year,

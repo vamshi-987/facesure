@@ -153,6 +153,7 @@ class MentorActionBody(BaseModel):
     mentor_id: str
     mentor_name: str
     remark: str
+    parent_contacted: Optional[bool] = False
 
 
 class FacultyCreateRequest(BaseModel):

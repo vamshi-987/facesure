@@ -4,9 +4,10 @@ import api from "../services/api";
 
 export default function RequestsTable({
   url,
-  mode = null, // "HOD" | "GUARD" | null
+  mode = null, // "HOD" | "GUARD" | "MENTOR" | null
   title = "Requests",
   hodInfo = null,
+  mentorInfo = null,
 }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +18,14 @@ export default function RequestsTable({
     request: null,
   });
 
+  const [mentorModal, setMentorModal] = useState({
+    open: false,
+    request: null,
+    action: null, // approve | reject
+    comment: "",
+    parentContacted: false,
+  });
+
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
   const requestsRef = useRef(null);
@@ -24,10 +33,14 @@ export default function RequestsTable({
   /* ================= FETCH ================= */
   const fetchRequests = async () => {
     try {
+      console.log("Fetching from URL:", url);
       const res = await api.get(url);
+      console.log("Response data:", res.data);
       setRequests(res.data?.data || []);
     } catch (err) {
       console.error("Fetch failed", err);
+      console.error("Error details:", err.response?.data);
+      setRequests([]);
     } finally {
       setLoading(false);
     }
@@ -36,6 +49,42 @@ export default function RequestsTable({
   useEffect(() => {
     fetchRequests();
   }, [url]);
+
+  /* ================= MENTOR ACTION ================= */
+  const handleMentorAction = async () => {
+    const { request, action, comment } = mentorModal;
+    if (!request || !action || !mentorInfo) return;
+
+    try {
+      await api.post(
+        `/request/${request._id || request.request_id}/mentor/${action}`,
+        {
+          mentor_id: mentorInfo.id,
+          mentor_name: mentorInfo.name,
+          remark: comment,
+          parent_contacted: mentorModal.parentContacted,
+        }
+      );
+
+      setToast(
+        action === "approve"
+          ? "Request Approved Successfully"
+          : "Request Rejected Successfully"
+      );
+
+      setMentorModal({
+        open: false,
+        request: null,
+        action: null,
+        comment: "",
+        parentContacted: false,
+      });
+      fetchRequests();
+      setTimeout(() => setToast(null), 2500);
+    } catch (err) {
+      console.error("Action failed", err);
+    }
+  };
 
   /* ================= HOD ACTION ================= */
   const handleConfirmedHodAction = async () => {
@@ -113,12 +162,19 @@ export default function RequestsTable({
               <th className="px-4 py-3">Section</th>
               <th className="px-4 py-3">Reason</th>
               <th className="px-4 py-3">Face</th>
-              {mode !== "HOD" && (
+              {mode !== "HOD" && mode !== "MENTOR" && (
               <th className="px-4 py-3">Status</th>
                )}
 
 
               {mode === "HOD" && (
+                <>
+                  <th className="px-4 py-3">Approve</th>
+                  <th className="px-4 py-3">Reject</th>
+                </>
+              )}
+
+              {mode === "MENTOR" && (
                 <>
                   <th className="px-4 py-3">Approve</th>
                   <th className="px-4 py-3">Reject</th>
@@ -173,10 +229,49 @@ export default function RequestsTable({
                       )}
                     </td>
 
-                    {mode !== "HOD" && (
+                    {mode !== "HOD" && mode !== "MENTOR" && (
                     <td className="px-4 py-3 font-semibold">{r.status}</td>
                     )}
 
+
+                    {/* MENTOR ACTIONS */}
+                    {mode === "MENTOR" && (
+                      <>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() =>
+                              setMentorModal({
+                                open: true,
+                                action: "approve",
+                                request: r,
+                                comment: "",
+                                parentContacted: false,
+                              })
+                            }
+                            className="px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700"
+                          >
+                            Approve
+                          </button>
+                        </td>
+
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() =>
+                              setMentorModal({
+                                open: true,
+                                action: "reject",
+                                request: r,
+                                comment: "",
+                                parentContacted: false,
+                              })
+                            }
+                            className="px-3 py-1 rounded text-white bg-red-600 hover:bg-red-700"
+                          >
+                            Reject
+                          </button>
+                        </td>
+                      </>
+                    )}
 
                     {/* HOD ACTIONS */}
                     {mode === "HOD" && (
@@ -297,6 +392,98 @@ export default function RequestsTable({
                 className="px-6 py-2 bg-gray-300 rounded"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MENTOR MODAL (WITH COMMENT & PARENT CONTACTED) */}
+      {mentorModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+            <h2 className="text-xl font-bold mb-4">
+              {mentorModal.action === "approve" ? "Approve Request" : "Reject Request"}
+            </h2>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                <strong>Student:</strong> {mentorModal.request?.student_name} ({mentorModal.request?.student_id})
+              </p>
+              <p className="text-sm text-gray-600 mb-2">
+                <strong>Reason:</strong> {mentorModal.request?.reason}
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-semibold mb-2">Comment *</label>
+              <textarea
+                value={mentorModal.comment}
+                onChange={(e) =>
+                  setMentorModal({ ...mentorModal, comment: e.target.value })
+                }
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows="3"
+                placeholder="Enter your comment..."
+              />
+            </div>
+
+            {mentorModal.action === "approve" && (
+              <div className="mb-6">
+                <label className="block text-sm font-semibold mb-2">Parents Contacted?</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="parentContacted"
+                      checked={mentorModal.parentContacted === true}
+                      onChange={() =>
+                        setMentorModal({ ...mentorModal, parentContacted: true })
+                      }
+                      className="mr-2"
+                    />
+                    Yes
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="parentContacted"
+                      checked={mentorModal.parentContacted === false}
+                      onChange={() =>
+                        setMentorModal({ ...mentorModal, parentContacted: false })
+                      }
+                      className="mr-2"
+                    />
+                    No
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() =>
+                  setMentorModal({
+                    open: false,
+                    request: null,
+                    action: null,
+                    comment: "",
+                    parentContacted: false,
+                  })
+                }
+                className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMentorAction}
+                className={`px-4 py-2 text-white rounded-lg ${
+                  mentorModal.action === "approve"
+                    ? "bg-green-600 hover:bg-green-700"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {mentorModal.action === "approve" ? "Approve" : "Reject"}
               </button>
             </div>
           </div>

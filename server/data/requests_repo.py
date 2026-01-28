@@ -69,7 +69,7 @@ def auto_mark_unchecked():
     requests.update_many(
         {
             "request_time": {"$lt": start},
-            "status": {"$in": ["REQUESTED", "PENDING"]}
+            "status": {"$in": ["REQUESTED", "PENDING_MENTOR", "PENDING_HOD"]}
         },
         {"$set": {"status": "UNCHECKED"}}
     )
@@ -94,7 +94,7 @@ def get_todays_requests():
     return list(
         requests.find({
             "request_time": {"$gte": start, "$lt": end},
-            "status": {"$in": ["REQUESTED", "PENDING"]}
+            "status": {"$in": ["REQUESTED", "PENDING_MENTOR", "PENDING_HOD"]}
         }).sort("request_time", -1)
     )
 
@@ -117,7 +117,7 @@ def get_todays_requests_for_hod(hod_id):
         requests.find({
             "hod_id": hod_id,
             "request_time": {"$gte": start, "$lt": end},
-            "status": {"$in": ["REQUESTED", "PENDING"]}
+            "status": {"$in": ["REQUESTED", "PENDING_MENTOR", "PENDING_HOD"]}
         }).sort("request_time", -1)
     )
 
@@ -148,7 +148,7 @@ def get_pending_requests_for_hod(hod_id: str):
     return list(
         requests.find({
             "student_id": {"$in": student_ids},
-            "status": {"$in": ["APPROVED_BY_MENTOR", "PENDING_HOD_APPROVAL"]},
+            "status": {"$in": ["APPROVED_BY_MENTOR", "PENDING_HOD"]},
             "hod_id": None
         })
     )
@@ -170,7 +170,7 @@ def has_active_request(student_id: str, session=None) -> bool:
     return requests.find_one(
         {
             "student_id": student_id,
-            "status": {"$in": ["REQUESTED", "PENDING_MENTOR_APPROVAL", "APPROVED", "PENDING_HOD_APPROVAL","APPROVED_BY_MENTOR"]}
+            "status": {"$in": ["REQUESTED", "PENDING_MENTOR", "APPROVED", "PENDING_HOD", "APPROVED_BY_MENTOR"]}
         },
         session=session
     ) is not None
