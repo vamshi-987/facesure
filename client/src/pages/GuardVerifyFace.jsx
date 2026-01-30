@@ -58,11 +58,29 @@ export default function GuardVerifyFace() {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus("❌ Camera not supported. Use HTTPS and a modern browser.");
+        return;
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "user" } 
+      });
       videoRef.current.srcObject = stream;
-      setStatus("Camera started");
+      setStatus("✅ Camera started");
     } catch (err) {
-      setStatus("Could not access camera");
+      console.error("Camera error:", err);
+      if (err.name === "NotAllowedError") {
+        setStatus("❌ Camera permission denied. Check browser settings.");
+      } else if (err.name === "NotFoundError") {
+        setStatus("❌ No camera device found on this device.");
+      } else if (err.name === "NotReadableError") {
+        setStatus("❌ Camera is being used by another application.");
+      } else if (err.name === "SecurityError") {
+        setStatus("❌ HTTPS required for camera access. Use secure connection.");
+      } else {
+        setStatus(`❌ Camera error: ${err.message}`);
+      }
     }
   };
 

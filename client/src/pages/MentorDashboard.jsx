@@ -45,8 +45,8 @@ export default function MentorDashboard() {
 
         {/* ✅ REQUESTS TABLE (REUSED COMPONENT) */}
         <RequestsTable
-          title="Pending Student Requests"
-          url={`/request/mentor/pending/${userId}`}
+          title="Today's Pending Student Requests"
+          url={`/request/mentor/today/${userId}`}
           mode="MENTOR"
           mentorInfo={{
             id: userId,

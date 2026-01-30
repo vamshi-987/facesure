@@ -65,13 +65,23 @@ def delete_request(request_id):
 def auto_mark_unchecked():
     start, _ = ist_today_range_utc()
 
-    # 1️⃣ REQUESTED / PENDING → UNCHECKED
+    # 1️⃣ Mark older requests as unchecked, distinguishing mentor vs HOD stage
+    # - REQUESTED or PENDING_MENTOR -> MENTOR_UNCHECKED
+    # - APPROVED_BY_MENTOR or PENDING_HOD -> HOD_UNCHECKED
     requests.update_many(
         {
             "request_time": {"$lt": start},
-            "status": {"$in": ["REQUESTED", "PENDING_MENTOR", "PENDING_HOD"]}
+            "status": {"$in": ["REQUESTED", "PENDING_MENTOR"]}
         },
-        {"$set": {"status": "UNCHECKED"}}
+        {"$set": {"status": "MENTOR_UNCHECKED"}}
+    )
+
+    requests.update_many(
+        {
+            "request_time": {"$lt": start},
+            "status": {"$in": ["APPROVED_BY_MENTOR", "PENDING_HOD"]}
+        },
+        {"$set": {"status": "HOD_UNCHECKED"}}
     )
 
     # 2️⃣ APPROVED but NOT LEFT → APPROVED_NOT_LEFT
@@ -130,6 +140,27 @@ def get_todays_requests_for_student(student_id):
             "student_id": student_id,
             "request_time": {"$gte": start, "$lt": end}
         }).sort("request_time", 1)
+    )
+
+
+def get_todays_requests_for_mentor(mentor_id: str):
+    """Get today's pending requests for a mentor"""
+    from data.student_mentor_repo import get_students_for_mentor
+    
+    start, end = ist_today_range_utc()
+    student_ids = get_students_for_mentor(mentor_id)
+    
+    if not student_ids:
+        return []
+    
+    student_ids_str = [str(sid) for sid in student_ids]
+    
+    return list(
+        requests.find({
+            "student_id": {"$in": student_ids_str},
+            "request_time": {"$gte": start, "$lt": end},
+            "status": {"$in": ["REQUESTED", "PENDING_MENTOR"]}
+        }).sort("request_time", -1)
     )
 
 

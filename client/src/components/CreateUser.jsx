@@ -13,7 +13,9 @@ const EMPTY_FORM = {
   year: "",
   course: "",
   years: [],
-  courses: []
+  courses: [],
+  father_mobile: "",
+  mother_mobile: ""
 };
 
 export default function CreateUser() {
@@ -64,17 +66,17 @@ export default function CreateUser() {
         created_by: loggedInUser
       };
 
-      // STUDENT
       if (role === "STUDENT") {
         payload = {
           ...payload,
           year: parseInt(form.year),
           course: form.course,
-          section: form.section
+          section: form.section,
+          father_mobile: form.father_mobile || null,
+          mother_mobile: form.mother_mobile || null
         };
       }
 
-      // FACULTY
       if (role === "FACULTY") {
         payload = {
           ...payload,
@@ -116,7 +118,6 @@ export default function CreateUser() {
           </h2>
         </div>
 
-        {/* ROLE SELECTION */}
         <div className="mb-8">
           <label className="block mb-2 font-bold">Select Role *</label>
           <div className="flex flex-wrap gap-4">
@@ -149,7 +150,6 @@ export default function CreateUser() {
 
         {role && (
           <div className="space-y-6">
-            {/* COMMON FIELDS */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {["id", "name", "phone", "password"].map((f) => (
                 <div key={f}>
@@ -177,7 +177,6 @@ export default function CreateUser() {
               )}
             </div>
 
-            {/* COLLEGE */}
             <div>
               <label className="text-xs font-bold uppercase">College *</label>
               <div className="flex gap-6">
@@ -196,7 +195,6 @@ export default function CreateUser() {
               </div>
             </div>
 
-            {/* FACULTY EXTRA */}
             {role === "FACULTY" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-blue-50 p-4 rounded">
                 <div>
@@ -233,34 +231,60 @@ export default function CreateUser() {
               </div>
             )}
 
-            {/* STUDENT EXTRA */}
             {role === "STUDENT" && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-green-50 p-4 rounded">
-                <select name="year" value={form.year} onChange={handleChange}>
-                  <option value="">Year</option>
-                  {[1, 2, 3, 4].map((y) => (
-                    <option key={y}>{y}</option>
-                  ))}
-                </select>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-green-50 p-4 rounded">
+                  <select name="year" value={form.year} onChange={handleChange} className="p-2 rounded border">
+                    <option value="">Year</option>
+                    {[1, 2, 3, 4].map((y) => (
+                      <option key={y}>{y}</option>
+                    ))}
+                  </select>
 
-                <select
-                  name="course"
-                  value={form.course}
-                  onChange={handleChange}
-                >
-                  <option value="">Course</option>
-                  {["CSE", "CSM", "ECE"].map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
+                  <select
+                    name="course"
+                    value={form.course}
+                    onChange={handleChange}
+                    className="p-2 rounded border"
+                  >
+                    <option value="">Course</option>
+                    {["CSE", "CSM", "ECE", "IT"].map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </select>
 
-                <input
-                  name="section"
-                  placeholder="Section"
-                  value={form.section}
-                  onChange={handleChange}
-                />
-              </div>
+                  <input
+                    name="section"
+                    placeholder="Section"
+                    value={form.section}
+                    onChange={handleChange}
+                    className="p-2 rounded border"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-yellow-50 p-4 rounded">
+                  <div>
+                    <label className="text-xs font-bold uppercase">Father's Mobile</label>
+                    <input
+                      name="father_mobile"
+                      placeholder="Father's Mobile Number"
+                      value={form.father_mobile}
+                      onChange={handleChange}
+                      className="w-full p-2 bg-white rounded border"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase">Mother's Mobile</label>
+                    <input
+                      name="mother_mobile"
+                      placeholder="Mother's Mobile Number"
+                      value={form.mother_mobile}
+                      onChange={handleChange}
+                      className="w-full p-2 bg-white rounded border"
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             <button

@@ -4,7 +4,7 @@ import api from "../services/api";
 
 export default function RequestsTable({
   url,
-  mode = null, // "HOD" | "GUARD" | "MENTOR" | null
+  mode = null,
   title = "Requests",
   hodInfo = null,
   mentorInfo = null,
@@ -14,14 +14,14 @@ export default function RequestsTable({
 
   const [confirmBox, setConfirmBox] = useState({
     open: false,
-    action: null, // approve | reject | left
+    action: null,
     request: null,
   });
 
   const [mentorModal, setMentorModal] = useState({
     open: false,
     request: null,
-    action: null, // approve | reject
+    action: null,
     comment: "",
     parentContacted: false,
   });
@@ -30,16 +30,12 @@ export default function RequestsTable({
   const navigate = useNavigate();
   const requestsRef = useRef(null);
 
-  /* ================= FETCH ================= */
   const fetchRequests = async () => {
     try {
-      console.log("Fetching from URL:", url);
       const res = await api.get(url);
-      console.log("Response data:", res.data);
       setRequests(res.data?.data || []);
     } catch (err) {
       console.error("Fetch failed", err);
-      console.error("Error details:", err.response?.data);
       setRequests([]);
     } finally {
       setLoading(false);
@@ -48,9 +44,18 @@ export default function RequestsTable({
 
   useEffect(() => {
     fetchRequests();
-  }, [url]);
+    
+    // Auto-refresh every 5 seconds when in MENTOR or HOD mode to keep status updated
+    let interval;
+    if (mode === "MENTOR" || mode === "HOD") {
+      interval = setInterval(fetchRequests, 5000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [url, mode]);
 
-  /* ================= MENTOR ACTION ================= */
   const handleMentorAction = async () => {
     const { request, action, comment } = mentorModal;
     if (!request || !action || !mentorInfo) return;
@@ -82,11 +87,17 @@ export default function RequestsTable({
       fetchRequests();
       setTimeout(() => setToast(null), 2500);
     } catch (err) {
+      // Extract meaningful error message from backend
+      const errorMessage = err.response?.data?.detail || 
+                          err.response?.data?.message ||
+                          "Action failed. Please try again.";
+      
+      setToast(errorMessage);
       console.error("Action failed", err);
+      setTimeout(() => setToast(null), 3500);
     }
   };
 
-  /* ================= HOD ACTION ================= */
   const handleConfirmedHodAction = async () => {
     const { request, action } = confirmBox;
     if (!request || !action || !hodInfo) return;
@@ -110,11 +121,17 @@ export default function RequestsTable({
       fetchRequests();
       setTimeout(() => setToast(null), 2500);
     } catch (err) {
+      // Extract meaningful error message from backend
+      const errorMessage = err.response?.data?.detail || 
+                          err.response?.data?.message ||
+                          "Action failed. Please try again.";
+      
+      setToast(errorMessage);
       console.error("Action failed", err);
+      setTimeout(() => setToast(null), 3500);
     }
   };
 
-  /* ================= GUARD ACTION ================= */
   const handleConfirmLeft = async () => {
     const { request } = confirmBox;
     if (!request) return;
@@ -130,20 +147,25 @@ export default function RequestsTable({
       fetchRequests();
       setTimeout(() => setToast(null), 2500);
     } catch (err) {
-      console.error(err);
+      // Extract meaningful error message from backend
+      const errorMessage = err.response?.data?.detail || 
+                          err.response?.data?.message ||
+                          "Action failed. Please try again.";
+      
+      setToast(errorMessage);
+      console.error("Action failed", err);
+      setTimeout(() => setToast(null), 3500);
     }
   };
 
   return (
     <>
-      {/* ✅ TOAST */}
       {toast && (
         <div className="fixed top-5 right-5 bg-green-600 text-white px-6 py-3 rounded shadow-lg z-50">
           {toast}
         </div>
       )}
 
-      {/* TABLE */}
       <div
         ref={requestsRef}
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border p-4 overflow-x-auto"
@@ -161,11 +183,16 @@ export default function RequestsTable({
               <th className="px-4 py-3">Year</th>
               <th className="px-4 py-3">Section</th>
               <th className="px-4 py-3">Reason</th>
+              {mode === "MENTOR" && (
+                <>
+                  <th className="px-4 py-3">Father Mobile</th>
+                  <th className="px-4 py-3">Mother Mobile</th>
+                </>
+              )}
               <th className="px-4 py-3">Face</th>
               {mode !== "HOD" && mode !== "MENTOR" && (
-              <th className="px-4 py-3">Status</th>
-               )}
-
+                <th className="px-4 py-3">Status</th>
+              )}
 
               {mode === "HOD" && (
                 <>
@@ -193,13 +220,13 @@ export default function RequestsTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="10" className="text-center py-10">
+                <td colSpan="12" className="text-center py-10">
                   Loading requests...
                 </td>
               </tr>
             ) : requests.length === 0 ? (
               <tr>
-                <td colSpan="10" className="text-center py-10">
+                <td colSpan="12" className="text-center py-10">
                   No requests found.
                 </td>
               </tr>
@@ -210,7 +237,7 @@ export default function RequestsTable({
                   localStorage.getItem(`face_verified_${requestId}`) === "true";
 
                 return (
-                  <tr key={requestId} className="hover:bg-gray-50">
+                  <tr key={requestId} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-4 py-3">{r.student_id}</td>
                     <td className="px-4 py-3">{r.student_name}</td>
                     <td className="px-4 py-3">{r.course}</td>
@@ -218,11 +245,35 @@ export default function RequestsTable({
                     <td className="px-4 py-3">{r.section}</td>
                     <td className="px-4 py-3">{r.reason}</td>
 
+                    {mode === "MENTOR" && (
+                      <>
+                        <td className="px-4 py-3">
+                          {r.father_mobile ? (
+                            <a href={`tel:${r.father_mobile}`} className="text-blue-600 hover:underline">
+                              {r.father_mobile}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">N/A</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {r.mother_mobile ? (
+                            <a href={`tel:${r.mother_mobile}`} className="text-blue-600 hover:underline">
+                              {r.mother_mobile}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">N/A</span>
+                          )}
+                        </td>
+                      </>
+                    )}
+
                     <td className="px-4 py-3">
                       {r.student_face ? (
                         <img
                           src={`data:image/jpeg;base64,${r.student_face}`}
                           className="w-10 h-10 rounded object-cover"
+                          alt="Student"
                         />
                       ) : (
                         "N/A"
@@ -230,11 +281,9 @@ export default function RequestsTable({
                     </td>
 
                     {mode !== "HOD" && mode !== "MENTOR" && (
-                    <td className="px-4 py-3 font-semibold">{r.status}</td>
+                      <td className="px-4 py-3 font-semibold">{r.status}</td>
                     )}
 
-
-                    {/* MENTOR ACTIONS */}
                     {mode === "MENTOR" && (
                       <>
                         <td className="px-4 py-3">
@@ -273,7 +322,6 @@ export default function RequestsTable({
                       </>
                     )}
 
-                    {/* HOD ACTIONS */}
                     {mode === "HOD" && (
                       <>
                         <td className="px-4 py-3">
@@ -308,7 +356,6 @@ export default function RequestsTable({
                       </>
                     )}
 
-                    {/* GUARD ACTIONS */}
                     {mode === "GUARD" && (
                       <>
                         <td className="px-4 py-3">
@@ -353,17 +400,16 @@ export default function RequestsTable({
         </table>
       </div>
 
-      {/* CONFIRM MODAL (HOD + GUARD) */}
       {confirmBox.open && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-3 text-center">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-3 text-center dark:text-white">
               {confirmBox.action === "approve" && "Confirm Approval"}
               {confirmBox.action === "reject" && "Confirm Rejection"}
               {confirmBox.action === "left" && "Confirm Leave"}
             </h2>
 
-            <p className="text-center mb-4">
+            <p className="text-center mb-4 dark:text-gray-300">
               Are you sure you want to{" "}
               <b>{confirmBox.action.toUpperCase()}</b> the request of{" "}
               <span className="font-bold">
@@ -389,7 +435,7 @@ export default function RequestsTable({
                 onClick={() =>
                   setConfirmBox({ open: false, action: null, request: null })
                 }
-                className="px-6 py-2 bg-gray-300 rounded"
+                className="px-6 py-2 bg-gray-300 dark:bg-gray-600 dark:text-white rounded"
               >
                 Cancel
               </button>
@@ -398,31 +444,46 @@ export default function RequestsTable({
         </div>
       )}
 
-      {/* MENTOR MODAL (WITH COMMENT & PARENT CONTACTED) */}
       {mentorModal.open && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-            <h2 className="text-xl font-bold mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg">
+            <h2 className="text-xl font-bold mb-4 dark:text-white">
               {mentorModal.action === "approve" ? "Approve Request" : "Reject Request"}
             </h2>
             
             <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
                 <strong>Student:</strong> {mentorModal.request?.student_name} ({mentorModal.request?.student_id})
               </p>
-              <p className="text-sm text-gray-600 mb-2">
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
                 <strong>Reason:</strong> {mentorModal.request?.reason}
               </p>
+              {mentorModal.request?.father_mobile && (
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                  <strong>Father:</strong>{" "}
+                  <a href={`tel:${mentorModal.request.father_mobile}`} className="text-blue-600 hover:underline">
+                    {mentorModal.request.father_mobile}
+                  </a>
+                </p>
+              )}
+              {mentorModal.request?.mother_mobile && (
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                  <strong>Mother:</strong>{" "}
+                  <a href={`tel:${mentorModal.request.mother_mobile}`} className="text-blue-600 hover:underline">
+                    {mentorModal.request.mother_mobile}
+                  </a>
+                </p>
+              )}
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-semibold mb-2">Comment *</label>
+              <label className="block text-sm font-semibold mb-2 dark:text-white">Comment <span className="text-red-500">*</span></label>
               <textarea
                 value={mentorModal.comment}
                 onChange={(e) =>
                   setMentorModal({ ...mentorModal, comment: e.target.value })
                 }
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:border-gray-600"
                 rows="3"
                 placeholder="Enter your comment..."
               />
@@ -430,9 +491,9 @@ export default function RequestsTable({
 
             {mentorModal.action === "approve" && (
               <div className="mb-6">
-                <label className="block text-sm font-semibold mb-2">Parents Contacted?</label>
+                <label className="block text-sm font-semibold mb-2 dark:text-white">Parents Contacted?</label>
                 <div className="flex gap-4">
-                  <label className="flex items-center">
+                  <label className="flex items-center dark:text-white">
                     <input
                       type="radio"
                       name="parentContacted"
@@ -444,7 +505,7 @@ export default function RequestsTable({
                     />
                     Yes
                   </label>
-                  <label className="flex items-center">
+                  <label className="flex items-center dark:text-white">
                     <input
                       type="radio"
                       name="parentContacted"
@@ -471,7 +532,7 @@ export default function RequestsTable({
                     parentContacted: false,
                   })
                 }
-                className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-600 dark:text-white rounded-lg hover:bg-gray-400"
               >
                 Cancel
               </button>

@@ -19,7 +19,7 @@ from data.roles_repo import get_role_by_name
 from data.faces_repo import get_face_by_user, delete_face, create_face_doc
 from data.face_vectors_repo import create_vector, delete_vector, search_similar_faces
 from data.student_mentor_repo import map_student_to_mentor, get_existing_mentor_ids_for_students, get_mentors_for_scope
-from data.student_hod_repo import map_student_to_hod
+from data.student_hod_repo import map_student_to_hod, delete_student_mappings
 from data.faculty_repo import get_all_hods
 from extensions.mongo import client, db
 from services.validators import validate_college
@@ -29,17 +29,25 @@ from core.global_response import success
 # ==========================================================
 # CREATE STUDENT
 # ==========================================================
-def register_student(student_id, name, phone, year, course, section, college, password, created_by):
+def register_student(student_id, name, phone, year, course, section, college, password, created_by, father_mobile=None, mother_mobile=None):
     validate_college(college)
     if repo_get_student_by_id(student_id):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Student already exists")
 
-    student_doc = StudentSchema(
-        _id=student_id, name=name, phone=phone, year=year,
-        course=course, section=section, college=college,
-        created_by=created_by, password_hash=hash_password(password),
-        face_id=None
-    ).model_dump(by_alias=True)
+    student_doc = {
+        "_id": student_id,
+        "name": name,
+        "phone": phone,
+        "father_mobile": father_mobile,
+        "mother_mobile": mother_mobile,
+        "year": year,
+        "course": course,
+        "section": section,
+        "college": college,
+        "created_by": created_by,
+        "password_hash": hash_password(password),
+        "face_id": None
+    }
 
     try:
         with client.start_session() as s:
@@ -53,12 +61,12 @@ def register_student(student_id, name, phone, year, course, section, college, pa
                 "assigned_at": datetime.utcnow()
             }, session=s)
 
-            # ✅ CREATE STUDENT–HOD MAPPINGS
+            # CREATE STUDENT-HOD MAPPINGS
             hods = get_all_hods()
             for h in hods:
                 if (
                     h["college"] == college
-                    and year in h["years"]          # int vs int
+                    and year in h["years"]
                     and course in h["courses"]
                 ):
                     map_student_to_hod(
@@ -67,10 +75,10 @@ def register_student(student_id, name, phone, year, course, section, college, pa
                         year,
                         course,
                         college,
-                        session=s                   # 🔑 pass session
+                        session=s
                     )
 
-            # ✅ CREATE STUDENT–MENTOR MAPPINGS
+            # CREATE STUDENT-MENTOR MAPPINGS
             mentor_ids = get_mentors_for_scope(college, year, course, section)
             for mentor_id in mentor_ids:
                 map_student_to_mentor(
@@ -98,7 +106,7 @@ def register_student_face_service(student_id: str, image_b64: str):
         raise HTTPException(status_code=409, detail="Face already registered")
 
     img, _ = decode_image(image_b64)
-    emb, _, _ = extract_embedding_and_landmarks(img)
+    emb, _ = extract_embedding_and_landmarks(img)
     emb_list = emb.tolist()
     matches = search_similar_faces(emb_list)
     for m in matches:

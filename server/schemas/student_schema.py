@@ -5,6 +5,9 @@ class Student(BaseModel):
     id: str = Field(alias="_id")
     name: str
     phone: str
+    
+    father_mobile: Optional[str] = None
+    mother_mobile: Optional[str] = None
 
     year: int
     course: str
@@ -14,7 +17,7 @@ class Student(BaseModel):
     created_by: str
     password_hash: str
 
-    face_id: Optional[str] = None  # ✅ Face added later
+    face_id: Optional[str] = None
 
     class Config:
         populate_by_name = True

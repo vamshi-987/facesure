@@ -14,6 +14,7 @@ from services.request_service import (
     service_get_todays_approved,
     service_get_student_todays_requests,
     service_get_mentor_pending_requests,
+    service_get_mentor_todays_requests,
     mentor_approve_request,
     mentor_reject_request
 )
@@ -65,6 +66,14 @@ def mentor_pending_requests(
     _=Depends(require_roles("MENTOR"))
 ):
     return service_get_mentor_pending_requests(mentor_id)
+
+
+@router.get("/mentor/today/{mentor_id}")
+def mentor_todays_requests(
+    mentor_id: str,
+    _=Depends(require_roles("MENTOR"))
+):
+    return service_get_mentor_todays_requests(mentor_id)
 
 
 @router.post("/{req_id}/mentor/approve")

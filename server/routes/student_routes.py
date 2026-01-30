@@ -7,29 +7,25 @@ from services.student_service import (
     promote_students_service,
     filter_students_service,
     get_student_service,
-    register_student_face_service   # ✅ NEW
+    register_student_face_service
 )
 from schemas.api_request_models import (
     StudentCreateRequest,
-    StudentUpdateRequest,
+    StudentSelfUpdateRequest,
+    StudentAdminUpdateRequest,
     PromoteStudentsRequest,
     StudentFilterRequest,
-    StudentFaceRegisterRequest      # ✅ NEW
+    StudentFaceRegisterRequest
 )
-
-# ... rest of the route file
 
 router = APIRouter(prefix="/student", tags=["Student"])
 
 
 # ======================================================
-
-# ADMIN / SUPER_ADMIN → CREATE STUDENT (NO FACE)
-
+# ADMIN / SUPER_ADMIN -> CREATE STUDENT (NO FACE)
 # ======================================================
 @router.post("/create")
-def create_student(payload: StudentCreateRequest,_=Depends(require_roles("ADMIN", "SUPER_ADMIN"))):
-
+def create_student(payload: StudentCreateRequest, _=Depends(require_roles("ADMIN", "SUPER_ADMIN"))):
     return register_student(
         student_id=payload.id,
         name=payload.name,
@@ -39,71 +35,58 @@ def create_student(payload: StudentCreateRequest,_=Depends(require_roles("ADMIN"
         section=payload.section,
         college=payload.college,
         password=payload.password,
-        created_by=payload.created_by
+        created_by=payload.created_by,
+        father_mobile=payload.father_mobile,
+        mother_mobile=payload.mother_mobile
     )
 
 
-
-
-
 # ======================================================
-
-# STUDENT → REGISTER FACE (AFTER LOGIN)
-
+# STUDENT -> REGISTER FACE (AFTER LOGIN)
 # ======================================================
 @router.post("/register-face")
-def register_student_face(payload: StudentFaceRegisterRequest,_=Depends(require_roles("STUDENT"))):
-
+def register_student_face(payload: StudentFaceRegisterRequest, _=Depends(require_roles("STUDENT"))):
     return register_student_face_service(
         student_id=payload.student_id,
         image_b64=payload.image_b64
     )
 
 
-
-
-
 # ======================================================
-
-# STUDENT → UPDATE PROFILE / FACE
-
+# STUDENT -> UPDATE OWN PROFILE (limited fields only)
 # ======================================================
-
 @router.put("/update/{student_id}")
-def update_student(student_id: str,payload: StudentUpdateRequest,_=Depends(require_roles("STUDENT"))):
-
+def update_student_self(student_id: str, payload: StudentSelfUpdateRequest, _=Depends(require_roles("STUDENT"))):
     return update_student_service(
         student_id,
-        payload.dict(exclude_unset=True),
-        payload.image_b64
+        payload.dict(exclude_unset=True)
     )
 
 
-
+# ======================================================
+# ADMIN -> UPDATE STUDENT (all fields including parent contacts)
+# ======================================================
+@router.put("/admin/update/{student_id}")
+def update_student_admin(student_id: str, payload: StudentAdminUpdateRequest, _=Depends(require_roles("ADMIN", "SUPER_ADMIN"))):
+    return update_student_service(
+        student_id,
+        payload.dict(exclude_unset=True)
+    )
 
 
 # ======================================================
-
-# ADMIN → DELETE STUDENT
-
+# ADMIN -> DELETE STUDENT
 # ======================================================
 @router.delete("/delete/{student_id}")
-def delete_student(student_id: str,_=Depends(require_roles("ADMIN", "SUPER_ADMIN"))):
-
+def delete_student(student_id: str, _=Depends(require_roles("ADMIN", "SUPER_ADMIN"))):
     return delete_student_service(student_id)
 
 
-
-
-
 # ======================================================
-
-# ADMIN → PROMOTE STUDENTS
-
+# ADMIN -> PROMOTE STUDENTS
 # ======================================================
 @router.post("/promote")
-def promote_students(payload: PromoteStudentsRequest,_=Depends(require_roles("ADMIN"))):
-
+def promote_students(payload: PromoteStudentsRequest, _=Depends(require_roles("ADMIN"))):
     return promote_students_service(
         payload.year,
         payload.college,
@@ -111,20 +94,17 @@ def promote_students(payload: PromoteStudentsRequest,_=Depends(require_roles("AD
     )
 
 
-
 # ======================================================
-
-# ADMIN / SUPER_ADMIN → FILTER STUDENTS
-
+# ADMIN / SUPER_ADMIN -> FILTER STUDENTS
 # ======================================================
 @router.post("/filter")
-def filter_students(payload: StudentFilterRequest,_=Depends(require_roles("ADMIN", "SUPER_ADMIN"))):
-
+def filter_students(payload: StudentFilterRequest, _=Depends(require_roles("ADMIN", "SUPER_ADMIN"))):
     return filter_students_service(payload.dict(exclude_unset=True))
 
-@router.get("/{student_id}")
-def get_student(student_id: str, _=Depends(require_roles("ADMIN", "SUPER_ADMIN", "STUDENT", "HOD"))):
-    # This calls get_student_service which returns success("Student fetched", student)
-    return get_student_service(student_id)
 
-# ... (rest of your routes are correct as they point to service functions)
+# ======================================================
+# GET STUDENT BY ID
+# ======================================================
+@router.get("/{student_id}")
+def get_student(student_id: str, _=Depends(require_roles("ADMIN", "SUPER_ADMIN", "STUDENT", "HOD", "MENTOR"))):
+    return get_student_service(student_id)

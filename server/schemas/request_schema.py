@@ -37,6 +37,8 @@ class Request(BaseModel):
         "APPROVED_BY_MENTOR",
         "REJECTED_BY_MENTOR",
         "PENDING_HOD",
+        "MENTOR_UNCHECKED",
+        "HOD_UNCHECKED",
         "UNCHECKED",
         "APPROVED",
         "REJECTED",

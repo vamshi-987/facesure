@@ -54,11 +54,13 @@ class HODFilterRequest(BaseModel):
 
 
 # ================= STUDENT =================
-# 🔐 ADMIN / SUPER_ADMIN → CREATE STUDENT (NO FACE)
+# ADMIN / SUPER_ADMIN -> CREATE STUDENT (NO FACE)
 class StudentCreateRequest(BaseModel):
     id: str
     name: str
     phone: str
+    father_mobile: Optional[str] = None
+    mother_mobile: Optional[str] = None
     year: int
     course: str
     section: str
@@ -67,20 +69,30 @@ class StudentCreateRequest(BaseModel):
     created_by: str
 
 
-# 👤 STUDENT → REGISTER FACE AFTER LOGIN
+# STUDENT -> REGISTER FACE AFTER LOGIN
 class StudentFaceRegisterRequest(BaseModel):
     student_id: str
     image_b64: str
 
 
-class StudentUpdateRequest(BaseModel):
+# STUDENT -> UPDATE OWN PROFILE (limited fields)
+class StudentSelfUpdateRequest(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
+    password: Optional[str] = None
+
+
+# ADMIN -> UPDATE STUDENT (all fields including parent contacts)
+class StudentAdminUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    father_mobile: Optional[str] = None
+    mother_mobile: Optional[str] = None
     year: Optional[int] = None
     course: Optional[str] = None
     section: Optional[str] = None
+    college: Optional[str] = None
     password: Optional[str] = None
-    image_b64: Optional[str] = None
 
 
 class StudentFilterRequest(BaseModel):

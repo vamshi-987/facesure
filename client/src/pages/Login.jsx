@@ -27,14 +27,26 @@ export default function Login() {
     setLoading(true);
     setMsg("");
 
-    const res = await loginApi(userId, password);
+    let res;
+    try {
+      res = await loginApi(userId, password);
 
-    if (!res.success) {
-      setLoading(false);
-      setMsg(res.message || "Invalid credentials");
+      if (!res.success) {
+        setMsg(res.message || "Invalid credentials");
+        setAlertType("error");
+        scrollToAlert();
+        return;
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      // Axios error shape: err.response?.data
+      const serverMsg = err?.response?.data?.detail || err?.response?.data?.message;
+      setMsg(serverMsg || "Login failed. Enter valid ID and try again.");
       setAlertType("error");
       scrollToAlert();
       return;
+    } finally {
+      setLoading(false);
     }
 
     const { access_token, refresh_token, role, face_id } = res.data;

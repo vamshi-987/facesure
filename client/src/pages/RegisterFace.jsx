@@ -79,12 +79,34 @@ export default function RegisterFace() {
   const requestCamera = async () => {
     setError("");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError("❌ Camera not supported. Use HTTPS and a modern browser (Chrome, Firefox, Safari, Edge).");
+        setPermission("denied");
+        return;
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "user" }
+      });
       stream.getTracks().forEach((t) => t.stop());
       setPermission("granted");
-    } catch {
+      setToast("✅ Camera permission granted!");
+      setTimeout(() => setToast(null), 2000);
+    } catch (err) {
+      console.error("Camera permission error:", err);
       setPermission("denied");
-      setError("Camera permission denied. Please allow access.");
+      
+      if (err.name === "NotAllowedError") {
+        setError("❌ Camera permission denied. Click the camera icon in your address bar to allow.");
+      } else if (err.name === "NotFoundError") {
+        setError("❌ No camera found. Your device doesn't have a camera.");
+      } else if (err.name === "NotReadableError") {
+        setError("❌ Camera is locked or being used by another app. Close other apps and try again.");
+      } else if (err.name === "SecurityError") {
+        setError("❌ HTTPS required! Camera only works on secure connections. Use HTTPS URL.");
+      } else {
+        setError(`❌ Camera error: ${err.message}`);
+      }
     }
   };
 
