@@ -9,6 +9,7 @@ export default function RequestsTable({
   hodInfo = null,
   mentorInfo = null,
 }) {
+  const [imagePreview, setImagePreview] = useState(null);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,6 +25,13 @@ export default function RequestsTable({
     action: null,
     comment: "",
     parentContacted: false,
+  });
+
+  const [studentModal, setStudentModal] = useState({
+    open: false,
+    loading: false,
+    student: null,
+    history: [],
   });
 
   const [toast, setToast] = useState(null);
@@ -158,6 +166,26 @@ export default function RequestsTable({
     }
   };
 
+  const openStudentModal = async (studentId) => {
+    setStudentModal({ open: true, loading: true, student: null, history: [] });
+    try {
+      const [stuRes, histRes] = await Promise.all([
+        api.get(`/student/${studentId}`),
+        api.get(`/request/student/history/${studentId}`)
+      ]);
+
+      const student = stuRes.data?.data || stuRes.data;
+      const history = histRes.data?.data || histRes.data;
+
+      setStudentModal({ open: true, loading: false, student, history });
+    } catch (err) {
+      console.error("Failed to fetch student details", err);
+      setToast(err.response?.data?.message || err.message || "Failed to load student details");
+      setStudentModal({ open: false, loading: false, student: null, history: [] });
+      setTimeout(() => setToast(null), 3500);
+    }
+  };
+
   return (
     <>
       {toast && (
@@ -165,7 +193,6 @@ export default function RequestsTable({
           {toast}
         </div>
       )}
-
       <div
         ref={requestsRef}
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border p-4 overflow-x-auto"
@@ -238,7 +265,14 @@ export default function RequestsTable({
 
                 return (
                   <tr key={requestId} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-4 py-3">{r.student_id}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => openStudentModal(r.student_id)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {r.student_id}
+                      </button>
+                    </td>
                     <td className="px-4 py-3">{r.student_name}</td>
                     <td className="px-4 py-3">{r.course}</td>
                     <td className="px-4 py-3">{r.year}</td>
@@ -272,12 +306,33 @@ export default function RequestsTable({
                       {r.student_face ? (
                         <img
                           src={`data:image/jpeg;base64,${r.student_face}`}
-                          className="w-10 h-10 rounded object-cover"
+                          className="w-10 h-10 rounded object-cover cursor-zoom-in"
                           alt="Student"
+                          onClick={() => setImagePreview(`data:image/jpeg;base64,${r.student_face}`)}
                         />
                       ) : (
                         "N/A"
                       )}
+                          {/* Enlarged Image Modal for requests table */}
+                          {imagePreview && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80" onClick={() => setImagePreview(null)}>
+                              <div className="relative max-w-3xl w-full flex flex-col items-center">
+                                <button
+                                  className="absolute top-2 right-2 text-white text-3xl font-bold bg-black bg-opacity-40 rounded-full px-3 py-1 hover:bg-opacity-70 focus:outline-none"
+                                  onClick={(e) => { e.stopPropagation(); setImagePreview(null); }}
+                                  aria-label="Close"
+                                >
+                                  &times;
+                                </button>
+                                <img
+                                  src={imagePreview}
+                                  alt="Enlarged Face"
+                                  className="rounded-lg shadow-2xl max-h-[80vh] max-w-full border-4 border-white"
+                                  onClick={e => e.stopPropagation()}
+                                />
+                              </div>
+                            </div>
+                          )}
                     </td>
 
                     {mode !== "HOD" && mode !== "MENTOR" && (
@@ -444,13 +499,178 @@ export default function RequestsTable({
         </div>
       )}
 
+      {studentModal.open && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setStudentModal({ open: false, loading: false, student: null, history: [] })}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl p-4 w-full max-w-2xl md:max-w-4xl shadow-lg overflow-y-auto max-h-[95vh]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => setStudentModal({ open: false, loading: false, student: null, history: [] })}
+                className="flex items-center gap-2 text-gray-600 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 font-semibold px-3 py-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+                aria-label="Back"
+              >
+                <span className="text-2xl leading-none">←</span>
+                <span className="hidden sm:inline">Back</span>
+              </button>
+              <h2 className="text-xl font-bold dark:text-white text-center flex-1">Student Details & History</h2>
+              <span className="w-16" />
+            </div>
+
+            {studentModal.loading ? (
+              <div className="py-10 text-center">Loading...</div>
+            ) : (
+              <div className="flex flex-col md:flex-row gap-6 items-stretch w-full">
+                <div className="flex flex-col items-center flex-shrink-0 w-full md:w-56">
+                    <img
+                      src={
+                        studentModal.student?.student_face || studentModal.student?.face_id
+                          ? `data:image/jpeg;base64,${studentModal.student?.student_face || studentModal.student?.face_id}`
+                          : "https://placehold.co/220x280?text=No+Photo"
+                      }
+                      alt="Profile"
+                      className="w-44 h-60 object-cover rounded-lg border shadow-lg bg-gray-50 max-w-full cursor-zoom-in"
+                      style={{ maxWidth: '100%' }}
+                      onClick={() => {
+                        if (studentModal.student?.student_face || studentModal.student?.face_id) {
+                          setImagePreview(`data:image/jpeg;base64,${studentModal.student?.student_face || studentModal.student?.face_id}`);
+                        }
+                      }}
+                    />
+                        {/* Enlarged Image Modal */}
+                        {imagePreview && (
+                          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80" onClick={() => setImagePreview(null)}>
+                            <div className="relative max-w-3xl w-full flex flex-col items-center">
+                              <button
+                                className="absolute top-2 right-2 text-white text-3xl font-bold bg-black bg-opacity-40 rounded-full px-3 py-1 hover:bg-opacity-70 focus:outline-none"
+                                onClick={(e) => { e.stopPropagation(); setImagePreview(null); }}
+                                aria-label="Close"
+                              >
+                                &times;
+                              </button>
+                              <img
+                                src={imagePreview}
+                                alt="Enlarged Profile"
+                                className="rounded-lg shadow-2xl max-h-[80vh] max-w-full border-4 border-white"
+                                onClick={e => e.stopPropagation()}
+                              />
+                            </div>
+                          </div>
+                        )}
+                  <span className="mt-3 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold uppercase whitespace-nowrap">
+                    STUDENT
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="border-2 border-indigo-300 rounded-lg bg-indigo-50 dark:bg-indigo-900 p-4 md:p-6 shadow-md mb-2 w-full overflow-x-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Roll Number</p>
+                        <p className="text-lg font-bold text-indigo-700 dark:text-indigo-300 font-mono break-all">{studentModal.student?._id || studentModal.student?.id}</p>
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Name</p>
+                        <p className="text-lg font-bold text-indigo-700 dark:text-indigo-300 break-words">{studentModal.student?.name}</p>
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Father Mobile</p>
+                        <p className="text-base font-semibold text-indigo-600 dark:text-indigo-400 break-all">
+                          {studentModal.student?.father_mobile ? (
+                            <a href={`tel:${studentModal.student.father_mobile}`} className="text-blue-600 hover:underline">
+                              {studentModal.student.father_mobile}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </p>
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Mother Mobile</p>
+                        <p className="text-base font-semibold text-indigo-600 dark:text-indigo-400 break-all">
+                          {studentModal.student?.mother_mobile ? (
+                            <a href={`tel:${studentModal.student.mother_mobile}`} className="text-blue-600 hover:underline">
+                              {studentModal.student.mother_mobile}
+                            </a>
+                          ) : (
+                            '—'
+                          )}
+                        </p>
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Created By</p>
+                        <p className="text-base font-semibold text-indigo-600 dark:text-indigo-400 break-all">{studentModal.student?.created_by || '—'}</p>
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Phone</p>
+                        <p className="text-base font-semibold text-indigo-600 dark:text-indigo-400 break-all">{studentModal.student?.phone || '—'}</p>
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">College</p>
+                        <p className="text-base font-semibold text-indigo-600 dark:text-indigo-400 break-all">{studentModal.student?.college || '—'}</p>
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Course</p>
+                        <p className="text-base font-semibold text-indigo-600 dark:text-indigo-400 break-all">{studentModal.student?.course || '—'}</p>
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Year / Section</p>
+                        <p className="text-base font-semibold text-indigo-600 dark:text-indigo-400 break-all">{studentModal.student?.year} / {studentModal.student?.section}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border rounded-lg overflow-hidden bg-white shadow-sm mb-4">
+                    {/* Removed: Father Mobile, Mother Mobile, Created By (now in top grid) */}
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold mb-2 dark:text-white">Request History</h4>
+                    <div className="max-h-56 md:max-h-64 overflow-auto rounded border bg-white dark:bg-gray-900 shadow-inner w-full">
+                      {(!studentModal.history || studentModal.history.length === 0) ? (
+                        <div className="text-sm text-gray-500 p-4">No history found.</div>
+                      ) : (
+                        <div className="overflow-x-auto w-full">
+                          <table className="min-w-full w-full text-sm text-left text-gray-700 dark:text-gray-200">
+                            <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0 z-10">
+                              <tr>
+                                <th className="px-3 py-2">When</th>
+                                <th className="px-3 py-2">Reason</th>
+                                <th className="px-3 py-2">Status</th>
+                                <th className="px-3 py-2">Mentor</th>
+                                <th className="px-3 py-2">HOD</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {studentModal.history.map((h) => (
+                                <tr key={h._id} className="odd:bg-white even:bg-gray-50 dark:even:bg-gray-700">
+                                  <td className="px-3 py-2 whitespace-nowrap">{h.request_time ? new Date(h.request_time).toLocaleString() : '—'}</td>
+                                  <td className="px-3 py-2 break-words max-w-xs">{h.reason}</td>
+                                  <td className="px-3 py-2 font-semibold whitespace-nowrap">{h.status}</td>
+                                  <td className="px-3 py-2 break-words max-w-xs">{h.mentor_name || '—'}</td>
+                                  <td className="px-3 py-2 break-words max-w-xs">{h.hod_name || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {mentorModal.open && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg">
             <h2 className="text-xl font-bold mb-4 dark:text-white">
               {mentorModal.action === "approve" ? "Approve Request" : "Reject Request"}
             </h2>
-            
             <div className="mb-4">
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
                 <strong>Student:</strong> {mentorModal.request?.student_name} ({mentorModal.request?.student_id})
@@ -475,7 +695,6 @@ export default function RequestsTable({
                 </p>
               )}
             </div>
-
             <div className="mb-4">
               <label className="block text-sm font-semibold mb-2 dark:text-white">Comment <span className="text-red-500">*</span></label>
               <textarea
@@ -488,7 +707,6 @@ export default function RequestsTable({
                 placeholder="Enter your comment..."
               />
             </div>
-
             {mentorModal.action === "approve" && (
               <div className="mb-6">
                 <label className="block text-sm font-semibold mb-2 dark:text-white">Parents Contacted?</label>
@@ -520,7 +738,6 @@ export default function RequestsTable({
                 </div>
               </div>
             )}
-
             <div className="flex justify-end gap-3">
               <button
                 onClick={() =>
@@ -538,10 +755,18 @@ export default function RequestsTable({
               </button>
               <button
                 onClick={handleMentorAction}
+                disabled={
+                  (mentorModal.action === "approve" && (!mentorModal.comment.trim() || mentorModal.parentContacted !== true)) ||
+                  (mentorModal.action === "reject" && !mentorModal.comment.trim())
+                }
                 className={`px-4 py-2 text-white rounded-lg ${
                   mentorModal.action === "approve"
-                    ? "bg-green-600 hover:bg-green-700"
-                    : "bg-red-600 hover:bg-red-700"
+                    ? (!mentorModal.comment.trim() || mentorModal.parentContacted !== true
+                        ? "bg-green-300 cursor-not-allowed"
+                        : "bg-green-600 hover:bg-green-700")
+                    : (!mentorModal.comment.trim()
+                        ? "bg-red-300 cursor-not-allowed"
+                        : "bg-red-600 hover:bg-red-700")
                 }`}
               >
                 {mentorModal.action === "approve" ? "Approve" : "Reject"}

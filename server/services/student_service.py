@@ -2,6 +2,7 @@ import cv2
 from datetime import datetime
 from pymongo.errors import PyMongoError
 from fastapi import HTTPException, status
+import base64
 
 from security.passwords import hash_password
 from schemas.student_schema import Student as StudentSchema
@@ -203,6 +204,16 @@ def get_student_service(student_id: str):
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
     student.pop("password_hash", None)
+    # Attach base64-encoded face image if available
+    try:
+        face = get_face_by_user(student_id)
+        if face and face.get("image_data"):
+            student["student_face"] = base64.b64encode(face.get("image_data")).decode()
+        else:
+            student["student_face"] = None
+    except Exception as e:
+        print(f"[WARN] Failed to get face for student {student_id}: {e}")
+        student["student_face"] = None
     return success("Student fetched", student)
 
 # ==========================================================

@@ -42,6 +42,12 @@ def student_reqs(student_id: str, _=Depends(require_roles("STUDENT"))):
     return service_get_student_requests(student_id)
 
 
+@router.get("/student/history/{student_id}")
+def student_history_for_staff(student_id: str, _=Depends(require_roles("MENTOR", "HOD", "ADMIN"))):
+    """Allow MENTOR/HOD/ADMIN to fetch a student's request history."""
+    return service_get_student_requests(student_id)
+
+
 @router.get("/student/today/{student_id}")
 def student_todays_reqs(
     student_id: str,
