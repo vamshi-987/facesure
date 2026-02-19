@@ -46,17 +46,6 @@ def require_roles(*allowed_roles):
     return wrapper
 
 
-def get_current_user_and_role(user_id: str = Depends(get_current_user)):
-    """Returns (user_id: str, role_name: str). Use for endpoints that need role-aware logic (e.g. filter scope)."""
-    mapping = get_user_role(user_id)
-    if not mapping:
-        raise HTTPException(HTTP_403_FORBIDDEN, "User has no role assigned")
-    role_doc = get_role_by_id(mapping["role_id"])
-    if not role_doc:
-        raise HTTPException(HTTP_403_FORBIDDEN, "Role not found")
-    return user_id, role_doc["name"]
-
-
 def validate_refresh_token(refresh_token: str):
     if not refresh_token.startswith("Bearer "):
         raise HTTPException(HTTP_401_UNAUTHORIZED, "Invalid refresh token format")

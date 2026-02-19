@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from services.request_service import (
-    service_get_filter_options,
     create_new_request,
     approve_request,
     reject_request,
@@ -17,17 +16,15 @@ from services.request_service import (
     service_get_mentor_pending_requests,
     service_get_mentor_todays_requests,
     mentor_approve_request,
-    mentor_reject_request,
-    service_filter_requests,
+    mentor_reject_request
 )
 
-from security.dependencies import require_roles, get_current_user_and_role
+from security.dependencies import require_roles
 from schemas.api_request_models import (
     RequestCreate,
     ApproveRequestBody,
     RejectRequestBody,
-    MentorActionBody,
-    RequestFilterBody,
+    MentorActionBody   # 👈 mentor comment body
 )
 
 router = APIRouter(prefix="/request", tags=["Requests"])
@@ -161,31 +158,6 @@ def guard_approved_requests(
     _=Depends(require_roles("GUARD"))
 ):
     return service_get_guard_approved_requests(college)
-
-# ==================================================
-# ADMIN / CUSTOM VIEW (ALL ROLES: ADMIN, SUPER_ADMIN, HOD, MENTOR)
-# ==================================================
-@router.get("/filter-options")
-def filter_options(user_and_role=Depends(get_current_user_and_role)):
-    """Filter options (HODs, Mentors) for Custom View filter UI."""
-    user_id, role_name = user_and_role
-    if role_name not in ("ADMIN", "SUPER_ADMIN", "HOD", "MENTOR"):
-        raise HTTPException(403, "Role not allowed")
-    return service_get_filter_options(user_id, role_name)
-
-
-@router.post("/filter")
-def filter_requests(
-    payload: RequestFilterBody,
-    user_and_role=Depends(get_current_user_and_role),
-):
-    """Role-aware filtered list of requests. Does not modify any request status."""
-    user_id, role_name = user_and_role
-    if role_name not in ("ADMIN", "SUPER_ADMIN", "HOD", "MENTOR"):
-        raise HTTPException(403, "Role not allowed for custom view")
-    filters = payload.model_dump(exclude_none=True)
-    return service_filter_requests(filters, user_id, role_name)
-
 
 # ==================================================
 # ADMIN

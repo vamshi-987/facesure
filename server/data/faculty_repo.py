@@ -117,31 +117,4 @@ def filter_hods(filters: dict):
     return list(faculty.find(query).sort("_id", 1))
 
 
-def _mentor_user_ids():
-    """Return list of user_ids that are currently assigned the MENTOR role."""
-    role = db["roles"].find_one({"name": "MENTOR"})
-    if not role:
-        return []
-    cursor = db["user_roles"].find({"role_id": role["_id"]}, {"user_id": 1})
-    return [r["user_id"] for r in cursor]
-
-
-def get_mentors_by_college(college: str):
-    """Return mentors (faculty with MENTOR role) filtered by `college`."""
-    ids = _mentor_user_ids()
-    if not ids:
-        return []
-    return list(
-        faculty.find({"_id": {"$in": ids}, "college": college, "active": True}).sort("_id", 1)
-    )
-
-
-def get_all_mentors():
-    """Return all mentors (faculty with MENTOR role)."""
-    ids = _mentor_user_ids()
-    if not ids:
-        return []
-    return list(faculty.find({"_id": {"$in": ids}, "active": True}).sort("_id", 1))
-
-
 

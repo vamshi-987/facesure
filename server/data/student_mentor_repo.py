@@ -87,27 +87,3 @@ def get_students_for_mentor(mentor_id: str):
         {"mentor_id": mentor_id}
     )
     return results
-
-
-def get_mentors_for_hod_scope(hod_id: str):
-    """
-    Returns mentor_ids assigned to the same (college, year, course) as the HOD's student_hod mappings.
-    Used for HOD filter options - only mentors in their scope.
-    """
-    from data.student_hod_repo import get_hod_assignments
-    assignments = list(get_hod_assignments(hod_id))
-    if not assignments:
-        return []
-    mentor_ids = set()
-    for a in assignments:
-        college = a.get("college")
-        year = a.get("year")
-        course = a.get("course")
-        if college is None or year is None or course is None:
-            continue
-        mids = student_mentor.distinct(
-            "mentor_id",
-            {"college": college, "year": year, "course": course}
-        )
-        mentor_ids.update(str(m) for m in mids)
-    return list(mentor_ids)

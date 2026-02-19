@@ -1,10 +1,8 @@
 import { useState, useRef } from "react";
 import api from "../services/api";
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import CustomViewRequestsButton from "./CustomViewRequestsButton";
 
 export default function GetRequests() {
-  const currentRole = localStorage.getItem("role") || "";
   const [role, setRole] = useState("");
   const [userId, setUserId] = useState("");
   const [result, setResult] = useState(null);
@@ -58,13 +56,10 @@ export default function GetRequests() {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8">
 
         {/* TITLE BAR */}
-        <div className="mb-8 bg-gray-500 rounded-lg py-3 px-4 flex items-center justify-between flex-wrap gap-2">
+        <div className="mb-8 bg-gray-500 rounded-lg py-3 text-center">
           <h2 className="text-lg font-semibold text-white">
-            Get Requests
+            Get Requests 
           </h2>
-          {(currentRole === "ADMIN" || currentRole === "SUPER_ADMIN") && (
-            <CustomViewRequestsButton role={currentRole} />
-          )}
         </div>
 
         {/* ROLE DROPDOWN */}

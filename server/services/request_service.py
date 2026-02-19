@@ -13,7 +13,6 @@ from data.requests_repo import (
     get_requests_by_student,
     get_requests_by_hod,
     get_all_requests,
-    get_requests_filtered,
     update_request,
     delete_request_if_requested,
     auto_mark_unchecked,
@@ -26,13 +25,10 @@ from data.requests_repo import (
     get_approved_requests_for_guard_college
 )
 
-from data.student_hod_repo import get_hods_for_student, get_students_for_hod
+from data.student_hod_repo import get_hods_for_student,get_students_for_hod
 from data.student_mentor_repo import get_students_for_mentor
 from data.student_repo import get_student_by_id
 from data.faces_repo import get_face_by_user
-from data.admin_repo import get_admin_by_id
-from data.faculty_repo import get_faculty_by_id, get_hods_by_college, get_mentors_by_college, get_all_mentors
-from data.student_mentor_repo import get_mentors_for_hod_scope
 
 # ==========================================================
 # STATUS CONSTANTS
@@ -438,48 +434,13 @@ def reject_request(request_id, hod_id, hod_name):
 
 
 # ==========================================================
-# GUARD – MARK LEFT (with parent SMS notification)
+# GUARD – MARK LEFT (UNCHANGED)
 # ==========================================================
 def mark_left(request_id):
-    req = get_request_by_id(request_id)
-    if not req:
-        raise HTTPException(404, "Request not found")
-    if req.get("status") != APPROVED:
-        raise HTTPException(409, "Only approved requests can be marked as left")
-
     update_request(request_id, {
         "status": LEFT_CAMPUS,
         "left_time": datetime.utcnow()
     })
-
-    # Send SMS to both parents
-    try:
-        from services.sms_service import send_left_campus_notification
-        father_mobile = req.get("father_mobile")
-        mother_mobile = req.get("mother_mobile")
-        if not father_mobile or not mother_mobile:
-            student = get_student_by_id(req.get("student_id"))
-            if student:
-                father_mobile = father_mobile or student.get("father_mobile")
-                mother_mobile = mother_mobile or student.get("mother_mobile")
-        hod_phone = ""
-        if req.get("hod_id"):
-            hod_doc = get_faculty_by_id(str(req["hod_id"]))
-            if hod_doc:
-                hod_phone = hod_doc.get("phone") or hod_doc.get("mobile") or ""
-        send_left_campus_notification(
-            student_roll=req.get("student_id") or "",
-            student_name=req.get("student_name") or "",
-            college=req.get("college") or "",
-            section=req.get("section") or "",
-            course=req.get("course") or "",
-            father_mobile=father_mobile or "",
-            mother_mobile=mother_mobile or "",
-            hod_phone=hod_phone,
-        )
-    except Exception as e:
-        print("[SMS] Parent notification failed:", e)
-
     return success("Student marked left")
 
 
@@ -552,227 +513,3 @@ def service_delete_requested_request(request_id: str, student_id: str):
 
     delete_request_if_requested(request_id)
     return success("Request deleted")
-
-
-# ==========================================================
-# CUSTOM VIEW – FILTER OPTIONS (HODs, Mentors for UI)
-# ==========================================================
-def service_get_filter_options(user_id: str, role_name: str):
-    """Return { hods: [{id, name}], mentors: [{id, name}] } for filter UI based on role."""
-    hods = []
-    mentors = []
-    if role_name == "SUPER_ADMIN":
-        from data.faculty_repo import get_all_hods
-        all_hods = get_all_hods()
-        hods = [{"id": h["_id"], "name": h.get("name", "")} for h in all_hods]
-        all_mentors = get_all_mentors()
-        mentors = [{"id": m["_id"], "name": m.get("name", "")} for m in all_mentors]
-    elif role_name == "ADMIN":
-        admin_doc = get_admin_by_id(user_id)
-        if admin_doc and admin_doc.get("college"):
-            college = admin_doc["college"]
-            hods = [{"id": h["_id"], "name": h.get("name", "")} for h in get_hods_by_college(college)]
-            mentors = [{"id": m["_id"], "name": m.get("name", "")} for m in get_mentors_by_college(college)]
-    elif role_name == "HOD":
-        mentor_ids = get_mentors_for_hod_scope(user_id)
-        if mentor_ids:
-            for mid in mentor_ids:
-                fac = get_faculty_by_id(mid)
-                if fac:
-                    mentors.append({"id": mid, "name": fac.get("name", "")})
-    return success("Filter options", {"hods": hods, "mentors": mentors})
-
-
-# ==========================================================
-# CUSTOM VIEW – FILTER REQUESTS (ROLE-AWARE, READ-ONLY)
-# ==========================================================
-# UI status -> DB statuses (AND across fields)
-_STATUS_APPROVED = [APPROVED, APPROVED_NOT_LEFT, LEFT_CAMPUS]
-_STATUS_REJECTED = [REJECTED, REJECTED_BY_MENTOR]
-_STATUS_PENDING = [REQUESTED, PENDING_MENTOR, PENDING_HOD, APPROVED_BY_MENTOR]
-_STATUS_LEFT = [LEFT_CAMPUS]
-
-_ALL_DB_STATUSES = {
-    REQUESTED,
-    PENDING_MENTOR,
-    APPROVED_BY_MENTOR,
-    REJECTED_BY_MENTOR,
-    PENDING_HOD,
-    "MENTOR_UNCHECKED",
-    "HOD_UNCHECKED",
-    "UNCHECKED",
-    APPROVED,
-    REJECTED,
-    LEFT_CAMPUS,
-    APPROVED_NOT_LEFT,
-}
-
-
-def _status_filter_to_db(statuses):
-    if not statuses:
-        return None
-    out = set()
-    for s in statuses:
-        raw = (s or "").strip()
-        if not raw:
-            continue
-        s_norm = raw.lower()
-        s_upper = raw.upper()
-
-        # Allow filtering by exact DB statuses too
-        if s_upper in _ALL_DB_STATUSES:
-            out.add(s_upper)
-            continue
-
-        if s_norm == "approved":
-            out.update(_STATUS_APPROVED)
-        elif s_norm == "rejected":
-            out.update(_STATUS_REJECTED)
-        elif s_norm == "pending":
-            out.update(_STATUS_PENDING)
-        elif s_norm == "left":
-            out.update(_STATUS_LEFT)
-    return list(out) if out else None
-
-
-def service_filter_requests(filters: dict, user_id: str, role_name: str):
-    """
-    Apply role-aware scope and filter; return paginated list. Does not modify any request status.
-    - SUPER_ADMIN: no restrictions; can filter anything.
-    - ADMIN: all filter fields, but restricted to their college only.
-    - HOD: restricted to their college + assigned students (year/course from student_hod).
-    - MENTOR: restricted to their college + assigned students (course/year/section from student_mentor_mapping).
-    """
-    from pymongo import DESCENDING, ASCENDING
-
-    page = max(1, filters.get("page") or 1)
-    page_size = min(100, max(1, filters.get("pageSize") or 20))
-    sort_by = filters.get("sortBy") or "request_time"
-    sort_order = filters.get("sortOrder") or "desc"
-    sort_dir = ASCENDING if sort_order == "asc" else DESCENDING
-
-    # Build base query with role scope
-    query = {}
-
-    if role_name == "SUPER_ADMIN":
-        allowed_student_ids = None  # no scope, no college
-    elif role_name == "ADMIN":
-        allowed_student_ids = None
-        admin_doc = get_admin_by_id(user_id)
-        if not admin_doc or not admin_doc.get("college"):
-            raise HTTPException(status_code=403, detail="Admin college not found")
-        query["college"] = admin_doc["college"]
-    elif role_name == "HOD":
-        faculty_doc = get_faculty_by_id(user_id)
-        if not faculty_doc or not faculty_doc.get("college"):
-            raise HTTPException(status_code=403, detail="HOD college not found")
-        query["college"] = faculty_doc["college"]
-        rows = get_students_for_hod(user_id)
-        allowed_student_ids = [str(r["student_id"]) for r in rows]
-        if not allowed_student_ids:
-            return success("Filtered requests", {"total": 0, "page": page, "pageSize": page_size, "items": []})
-        query["student_id"] = {"$in": allowed_student_ids}
-    elif role_name == "MENTOR":
-        faculty_doc = get_faculty_by_id(user_id)
-        if not faculty_doc or not faculty_doc.get("college"):
-            raise HTTPException(status_code=403, detail="Mentor college not found")
-        query["college"] = faculty_doc["college"]
-        student_ids = get_students_for_mentor(user_id)
-        allowed_student_ids = [str(sid) for sid in student_ids]
-        if not allowed_student_ids:
-            return success("Filtered requests", {"total": 0, "page": page, "pageSize": page_size, "items": []})
-        query["student_id"] = {"$in": allowed_student_ids}
-    else:
-        raise HTTPException(status_code=403, detail="Role not allowed for custom view")
-
-    # Apply filters (AND across fields). Only use fields allowed for role (admin gets all).
-    if filters.get("studentId"):
-        sid = str(filters["studentId"]).strip()
-        if sid:
-            if allowed_student_ids is not None and sid not in allowed_student_ids:
-                return success("Filtered requests", {"total": 0, "page": page, "pageSize": page_size, "items": []})
-            query["student_id"] = sid
-    if filters.get("studentIds"):
-        ids = [str(x).strip() for x in filters["studentIds"] if x]
-        if ids:
-            if allowed_student_ids is not None:
-                ids = [x for x in ids if x in allowed_student_ids]
-            if ids:
-                query["student_id"] = {"$in": ids}
-            else:
-                return success("Filtered requests", {"total": 0, "page": page, "pageSize": page_size, "items": []})
-
-    if filters.get("name"):
-        name = str(filters["name"]).strip()
-        if name:
-            query["student_name"] = {"$regex": name, "$options": "i"}
-
-    if filters.get("year") is not None:
-        query["year"] = filters["year"]
-    if filters.get("years"):
-        query["year"] = {"$in": list(filters["years"])}
-
-    if filters.get("course"):
-        query["course"] = filters["course"]
-    if filters.get("courses"):
-        query["course"] = {"$in": list(filters["courses"])}
-
-    if filters.get("section"):
-        query["section"] = filters["section"]
-    if filters.get("sections"):
-        query["section"] = {"$in": list(filters["sections"])}
-
-    # College: only Superadmin can filter by any college; Admin/HOD/Mentor already scoped above
-    if role_name == "SUPER_ADMIN" and filters.get("college"):
-        query["college"] = filters["college"]
-
-    # Date range (request_time)
-    if filters.get("startDate") or filters.get("endDate"):
-        date_q = {}
-        if filters.get("startDate"):
-            try:
-                start = datetime.strptime(filters["startDate"][:10], "%Y-%m-%d")
-                date_q["$gte"] = start
-            except ValueError:
-                pass
-        if filters.get("endDate"):
-            try:
-                end = datetime.strptime(filters["endDate"][:10], "%Y-%m-%d")
-                end = end.replace(hour=23, minute=59, second=59, microsecond=999999)
-                date_q["$lte"] = end
-            except ValueError:
-                pass
-        if date_q:
-            query["request_time"] = date_q
-
-    # Status
-    statuses = filters.get("statuses") or ([filters["status"]] if filters.get("status") else None)
-    db_statuses = _status_filter_to_db(statuses)
-    if db_statuses:
-        query["status"] = {"$in": db_statuses}
-
-    # hodId/hodIds: Admin, Superadmin
-    if role_name in ("ADMIN", "SUPER_ADMIN"):
-        hod_ids = filters.get("hodIds") or ([filters["hodId"]] if filters.get("hodId") else [])
-        hod_ids = [str(x).strip() for x in hod_ids if x]
-        if hod_ids:
-            query["hod_id"] = hod_ids[0] if len(hod_ids) == 1 else {"$in": hod_ids}
-
-    # mentorId/mentorIds: Admin, Superadmin, HOD (HOD only allowed mentors in scope)
-    if role_name in ("ADMIN", "SUPER_ADMIN"):
-        mentor_ids = filters.get("mentorIds") or ([filters["mentorId"]] if filters.get("mentorId") else [])
-        mentor_ids = [str(x).strip() for x in mentor_ids if x]
-        if mentor_ids:
-            query["mentor_id"] = mentor_ids[0] if len(mentor_ids) == 1 else {"$in": mentor_ids}
-    elif role_name == "HOD":
-        allowed_mentor_ids = set(get_mentors_for_hod_scope(user_id))
-        mentor_ids = filters.get("mentorIds") or ([filters["mentorId"]] if filters.get("mentorId") else [])
-        mentor_ids = [str(x).strip() for x in mentor_ids if x]
-        mentor_ids = [m for m in mentor_ids if m in allowed_mentor_ids]
-        if mentor_ids:
-            query["mentor_id"] = mentor_ids[0] if len(mentor_ids) == 1 else {"$in": mentor_ids}
-
-    skip = (page - 1) * page_size
-    items, total = get_requests_filtered(query, skip=skip, limit=page_size, sort_by=sort_by, sort_order=sort_dir)
-    items = [_stringify_ids(r) for r in items]
-    return success("Filtered requests", {"total": total, "page": page, "pageSize": page_size, "items": items})
