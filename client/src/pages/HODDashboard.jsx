@@ -3,6 +3,7 @@ import Navbar from "../components/Navbar";
 import GetUser from "../components/GetUser";
 import RequestsTable from "../components/RequestsTable";
 import ManageMentorAssignments from "../components/ManageMentorAssignments";
+import CustomViewRequestsButton from "../components/CustomViewRequestsButton";
 import api from "../services/api";
 
 export default function HODDashboard() {
@@ -120,6 +121,11 @@ export default function HODDashboard() {
             <ManageMentorAssignments onClose={() => setShowMentorMgmt(false)}/>
           </div>
         )}
+
+        {/* Custom View Requests (filter modal) */}
+        <div className="flex justify-end mb-4">
+          <CustomViewRequestsButton role="HOD" />
+        </div>
 
         {/* ✅ REQUESTS TABLE (REUSED COMPONENT) */}
         <RequestsTable

@@ -16,12 +16,15 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "axios": "^1.13.2",
+    "jspdf": "^4.1.0",
+    "jspdf-autotable": "^5.0.7",
     "jwt-decode": "^4.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.10.1",
     "react-webcam": "^7.2.0",
-    "vite-plugin-mkcert": "^1.17.9"
+    "vite-plugin-mkcert": "^1.17.9",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

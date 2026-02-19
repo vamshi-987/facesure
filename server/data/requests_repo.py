@@ -43,6 +43,18 @@ def get_all_requests():
     )
 
 
+def get_requests_filtered(query: dict, skip: int = 0, limit: int = 20, sort_by: str = "request_time", sort_order: int = -1):
+    """Returns (list of request docs, total count) for custom filter view. Does not modify status."""
+    total = requests.count_documents(query)
+    cursor = (
+        requests.find(query)
+        .sort(sort_by, sort_order)
+        .skip(skip)
+        .limit(limit)
+    )
+    return list(cursor), total
+
+
 # ==========================================================
 # UPDATE / DELETE
 # ==========================================================
