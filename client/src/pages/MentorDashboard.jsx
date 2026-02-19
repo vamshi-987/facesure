@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 import RequestsTable from "../components/RequestsTable";
+import CustomViewRequestsButton from "../components/CustomViewRequestsButton";
 import api from "../services/api";
 
 export default function MentorDashboard() {
@@ -41,6 +42,11 @@ export default function MentorDashboard() {
           <p className="text-sm text-gray-500 dark:text-gray-300">
             {loading ? "Loading..." : `Mentor${mentor?.name ? ` - ${mentor.name}` : ""}`}
           </p>
+        </div>
+
+        {/* Custom View Requests (filter modal) */}
+        <div className="flex justify-end mb-4">
+          <CustomViewRequestsButton role="MENTOR" />
         </div>
 
         {/* ✅ REQUESTS TABLE (REUSED COMPONENT) */}

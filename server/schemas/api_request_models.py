@@ -168,6 +168,32 @@ class MentorActionBody(BaseModel):
     parent_contacted: Optional[bool] = False
 
 
+# ================= REQUEST FILTER (CUSTOM VIEW) =================
+class RequestFilterBody(BaseModel):
+    studentId: Optional[str] = None
+    studentIds: Optional[List[str]] = None
+    name: Optional[str] = None
+    year: Optional[int] = None
+    years: Optional[List[int]] = None
+    course: Optional[str] = None
+    courses: Optional[List[str]] = None
+    section: Optional[str] = None
+    sections: Optional[List[str]] = None
+    college: Optional[str] = None
+    startDate: Optional[str] = None  # ISO date "YYYY-MM-DD"
+    endDate: Optional[str] = None
+    status: Optional[str] = None
+    statuses: Optional[List[str]] = None  # approved, rejected, pending, left
+    hodId: Optional[str] = None
+    hodIds: Optional[List[str]] = None
+    mentorId: Optional[str] = None
+    mentorIds: Optional[List[str]] = None
+    page: Optional[int] = 1
+    pageSize: Optional[int] = 20
+    sortBy: Optional[str] = "request_time"
+    sortOrder: Optional[Literal["asc", "desc"]] = "desc"
+
+
 class FacultyCreateRequest(BaseModel):
     id: str                     # faculty _id
     name: str
