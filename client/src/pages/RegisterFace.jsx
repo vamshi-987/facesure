@@ -5,6 +5,7 @@ import api from "../services/api";
 
 export default function RegisterFace() {
   const webcamRef = useRef(null);
+  const canvasRef = useRef(null);
   const navigate = useNavigate();
 
   const [imgSrc, setImgSrc] = useState(null);
@@ -13,6 +14,8 @@ export default function RegisterFace() {
   const [permission, setPermission] = useState("prompt");
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);
+  const [validationMessage, setValidationMessage] = useState("");
+  const [validationStatus, setValidationStatus] = useState(""); // "good", "warning", "error"
 
   const userId = localStorage.getItem("userId");
   const userType = localStorage.getItem("role") || "STUDENT";
@@ -119,6 +122,81 @@ export default function RegisterFace() {
   }
   };
 
+  // Analyze video frame for face detection and lighting
+  const analyzeFrame = useCallback(() => {
+    const video = webcamRef.current?.video;
+    const canvas = canvasRef.current;
+    
+    if (!video || !canvas || !cameraReady || video.readyState !== video.HAVE_ENOUGH_DATA) {
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    // Calculate average brightness (lighting check)
+    let totalBrightness = 0;
+    let pixelCount = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const brightness = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+      totalBrightness += brightness;
+      pixelCount++;
+    }
+    const avgBrightness = totalBrightness / pixelCount;
+
+    // Only do lighting-based guidance (face detection heuristics were too noisy)
+    let message = "";
+    let status = "good";
+
+    if (avgBrightness < 0.25) {
+      message = "⚠️ Lighting is too dark. Please move to a brighter area.";
+      status = "warning";
+    } else if (avgBrightness > 0.9) {
+      message = "⚠️ Lighting is too bright. Please reduce glare or move to a shaded area.";
+      status = "warning";
+    } else if (avgBrightness < 0.4) {
+      message = "💡 Lighting could be better. Try moving to a brighter area and centering your face.";
+      status = "warning";
+    } else {
+      message = "✅ Good! Lighting looks fine. Ensure only your face is in the frame and centered.";
+      status = "good";
+    }
+
+    setValidationMessage(message);
+    setValidationStatus(status);
+  }, [cameraReady]);
+
+  // Run validation on video frames
+  useEffect(() => {
+    if (!cameraReady || imgSrc) {
+      setValidationMessage("");
+      setValidationStatus("");
+      return;
+    }
+
+    let interval = null;
+    
+    // Small delay before starting validation to let camera stabilize
+    const timeout = setTimeout(() => {
+      interval = setInterval(() => {
+        analyzeFrame();
+      }, 500); // Check every 500ms
+    }, 1000);
+
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
+  }, [cameraReady, imgSrc, analyzeFrame]);
+
 
   const capture = useCallback(() => {
     if (!cameraReady) return;
@@ -210,28 +288,50 @@ export default function RegisterFace() {
 
         {permission === "granted" && (
           <>
-            <div className="aspect-square rounded-2xl overflow-hidden border-4 border-indigo-500 mb-4">
+            <div className="aspect-square rounded-2xl overflow-hidden border-4 border-indigo-500 mb-4 relative">
               {!imgSrc ? (
-                <Webcam
-                  ref={webcamRef}
-                  audio={false}
-                  screenshotFormat="image/jpeg"
-                  videoConstraints={{ facingMode: "user" }}
-                  onUserMedia={() => setCameraReady(true)}
-                  className="w-full h-full object-cover"
-                />
+                <>
+                  <Webcam
+                    ref={webcamRef}
+                    audio={false}
+                    screenshotFormat="image/jpeg"
+                    videoConstraints={{ facingMode: "user" }}
+                    onUserMedia={() => setCameraReady(true)}
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Hidden canvas for analysis */}
+                  <canvas ref={canvasRef} className="hidden" />
+                  {/* Live validation message overlay */}
+                  {validationMessage && (
+                    <div className={`absolute bottom-0 left-0 right-0 p-3 text-sm font-semibold ${
+                      validationStatus === "good" 
+                        ? "bg-green-600/90 text-white" 
+                        : validationStatus === "warning"
+                        ? "bg-yellow-600/90 text-white"
+                        : "bg-red-600/90 text-white"
+                    }`}>
+                      {validationMessage}
+                    </div>
+                  )}
+                </>
               ) : (
                 <img src={imgSrc} className="w-full h-full object-cover" />
               )}
             </div>
 
             {!imgSrc ? (
-              <button
-                onClick={capture}
-                className="w-full py-4 bg-indigo-600 rounded-xl font-bold"
-              >
-                Capture
-              </button>
+              <div>
+                <button
+                  onClick={capture}
+                  className={`w-full py-4 rounded-xl font-bold ${
+                    validationStatus === "warning"
+                      ? "bg-yellow-600 hover:bg-yellow-700"
+                      : "bg-indigo-600 hover:bg-indigo-700"
+                  }`}
+                >
+                  Capture
+                </button>
+              </div>
             ) : (
               <div className="flex gap-4">
                 <button

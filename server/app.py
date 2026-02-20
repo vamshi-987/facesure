@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 # from fastapi.staticfiles import StaticFiles
+import os
 import socket
 
 from extensions.cors import init_cors
@@ -58,6 +59,12 @@ async def on_start():
     hostname = socket.gethostname()
     local_ip = socket.gethostbyname(hostname)
 
+    # SMS config (for parent leave notifications)
+    sms_enabled = str(os.environ.get("SMS_ENABLED", "")).lower() in ("true", "1", "yes")
+    sms_provider = os.environ.get("SMS_PROVIDER", "msg91")
+    sms_key = os.environ.get("FAST2SMS_API_KEY") or os.environ.get("MSG91_AUTH_KEY") or ""
+    sms_ok = sms_key and not sms_key.startswith("REPLACE_")
+
     print("\n" + "="*60)
     print("🚀 FASTAPI SERVER STARTED SUCCESSFULLY")
     print(f"🔹 Local Address:     http://127.0.0.1:5000")
@@ -65,6 +72,7 @@ async def on_start():
     print(f"🔹 API Docs (Swagger): http://{local_ip}:5000/docs")
     print(f"🔹 ReDoc Docs:         http://{local_ip}:5000/redoc")
     print(f"🔹 Static Files:       http://{local_ip}:5000/static")
+    print(f"🔹 SMS:               {'ON' if sms_enabled else 'OFF'} ({sms_provider})" + (" [key set]" if sms_ok else " [key missing/placeholder]"))
     print("="*60 + "\n")
 
 

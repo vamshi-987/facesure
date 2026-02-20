@@ -175,10 +175,11 @@ export default function FilterRequestsModal({ open, onClose, role }) {
     setDownloading(true);
     try {
       const allItems = total <= pageSize ? items : await fetchAllForDownload();
-      const headers = ["Student ID", "Name", "Course", "Year", "Section", "Reason", "Status", "Request time"];
+      const headers = ["Student ID", "Name", "College", "Course", "Year", "Section", "Reason", "Status", "Request time"];
       const rows = allItems.map((r) => [
         r.student_id ?? "",
         r.student_name ?? "",
+        r.college ?? "",
         r.course ?? "",
         r.year ?? "",
         r.section ?? "",
@@ -548,6 +549,7 @@ export default function FilterRequestsModal({ open, onClose, role }) {
                     <tr>
                       <th className="px-4 py-2">ID</th>
                       <th className="px-4 py-2">Name</th>
+                      <th className="px-4 py-2">College</th>
                       <th className="px-4 py-2">Course</th>
                       <th className="px-4 py-2">Year</th>
                       <th className="px-4 py-2">Section</th>
@@ -559,7 +561,7 @@ export default function FilterRequestsModal({ open, onClose, role }) {
                   <tbody>
                     {items.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
+                        <td colSpan={9} className="px-4 py-6 text-center text-gray-500">
                           No requests found.
                         </td>
                       </tr>
@@ -568,6 +570,7 @@ export default function FilterRequestsModal({ open, onClose, role }) {
                         <tr key={r._id} className="border-t border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-2">{r.student_id}</td>
                           <td className="px-4 py-2">{r.student_name}</td>
+                          <td className="px-4 py-2">{r.college ?? "—"}</td>
                           <td className="px-4 py-2">{r.course}</td>
                           <td className="px-4 py-2">{r.year}</td>
                           <td className="px-4 py-2">{r.section}</td>

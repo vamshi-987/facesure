@@ -98,7 +98,7 @@ def create_new_request(student_id: str, reason: str):
                     )
 
                 # Daily limit
-                if count_todays_requests(student_id, session=s) >= 3:
+                if count_todays_requests(student_id, session=s) >= 10:
                     raise HTTPException(
                         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                         detail="Daily request limit exceeded"
@@ -455,30 +455,39 @@ def mark_left(request_id):
     # Send SMS to both parents
     try:
         from services.sms_service import send_left_campus_notification
-        father_mobile = req.get("father_mobile")
-        mother_mobile = req.get("mother_mobile")
+        father_mobile = req.get("father_mobile") or ""
+        mother_mobile = req.get("mother_mobile") or ""
         if not father_mobile or not mother_mobile:
-            student = get_student_by_id(req.get("student_id"))
+            sid = req.get("student_id")
+            if sid is not None:
+                sid = str(sid)
+            student = get_student_by_id(sid)
             if student:
-                father_mobile = father_mobile or student.get("father_mobile")
-                mother_mobile = mother_mobile or student.get("mother_mobile")
-        hod_phone = ""
-        if req.get("hod_id"):
-            hod_doc = get_faculty_by_id(str(req["hod_id"]))
-            if hod_doc:
-                hod_phone = hod_doc.get("phone") or hod_doc.get("mobile") or ""
-        send_left_campus_notification(
-            student_roll=req.get("student_id") or "",
-            student_name=req.get("student_name") or "",
-            college=req.get("college") or "",
-            section=req.get("section") or "",
-            course=req.get("course") or "",
-            father_mobile=father_mobile or "",
-            mother_mobile=mother_mobile or "",
-            hod_phone=hod_phone,
-        )
+                father_mobile = father_mobile or student.get("father_mobile") or ""
+                mother_mobile = mother_mobile or student.get("mother_mobile") or ""
+        if not father_mobile and not mother_mobile:
+            print("[SMS] No parent numbers for request", request_id, "- add father_mobile/mother_mobile on student")
+        else:
+            hod_name = req.get("hod_name") or ""
+            hod_phone = ""
+            if req.get("hod_id"):
+                hod_doc = get_faculty_by_id(str(req["hod_id"]))
+                if hod_doc:
+                    hod_name = hod_name or hod_doc.get("name") or ""
+                    hod_phone = hod_doc.get("phone") or hod_doc.get("mobile") or ""
+            send_left_campus_notification(
+                student_roll=req.get("student_id") or "",
+                student_name=req.get("student_name") or "",
+                reason=req.get("reason") or "",
+                father_mobile=father_mobile,
+                mother_mobile=mother_mobile,
+                hod_name=hod_name,
+                hod_phone=hod_phone,
+            )
     except Exception as e:
         print("[SMS] Parent notification failed:", e)
+        import traceback
+        traceback.print_exc()
 
     return success("Student marked left")
 

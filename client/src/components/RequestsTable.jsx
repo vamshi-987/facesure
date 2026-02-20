@@ -266,12 +266,16 @@ export default function RequestsTable({
                 return (
                   <tr key={requestId} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => openStudentModal(r.student_id)}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {r.student_id}
-                      </button>
+                      {mode === "GUARD" ? (
+                        <span className="text-gray-700 dark:text-gray-300">{r.student_id}</span>
+                      ) : (
+                        <button
+                          onClick={() => openStudentModal(r.student_id)}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {r.student_id}
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-3">{r.student_name}</td>
                     <td className="px-4 py-3">{r.course}</td>

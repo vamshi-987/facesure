@@ -22,6 +22,7 @@ from services.request_service import (
 )
 
 from security.dependencies import require_roles, get_current_user_and_role
+from services.sms_service import send_sms
 from schemas.api_request_models import (
     RequestCreate,
     ApproveRequestBody,
@@ -249,4 +250,20 @@ def debug_mentor(mentor_id: str, _=Depends(require_roles("MENTOR", "ADMIN"))):
         "total_requests_in_db": len(all_requests),
         "matching_requests": matching_requests,
         "request_statuses": list(set(r.get("status") for r in all_requests))
+    }
+
+
+@router.post("/test-sms/{phone}")
+def test_sms(phone: str, _=Depends(require_roles("ADMIN", "SUPER_ADMIN"))):
+    """Test SMS sending to a phone number. ADMIN only."""
+    import os
+    test_message = "Test SMS from FaceAuth system. If you receive this, SMS is working!"
+    result = send_sms(phone, test_message)
+    
+    return {
+        "phone": phone[:3] + "****" if len(phone) > 3 else "****",
+        "message_sent": result,
+        "sms_enabled": os.environ.get("SMS_ENABLED", "").lower() in ("true", "1", "yes"),
+        "sms_provider": os.environ.get("SMS_PROVIDER", "msg91"),
+        "api_key_set": bool(os.environ.get("FAST2SMS_API_KEY") or os.environ.get("MSG91_AUTH_KEY")),
     }

@@ -1,3 +1,4 @@
+from bson import ObjectId
 from extensions.mongo import db
 
 students = db["students"]
@@ -6,7 +7,18 @@ def create_student(doc: dict, session=None):
     return students.insert_one(doc, session=session)
 
 def get_student_by_id(student_id: str):
-    return students.find_one({"_id": student_id})
+    if not student_id:
+        return None
+    doc = students.find_one({"_id": student_id})
+    if doc is not None:
+        return doc
+    # Request often stores student_id as str(ObjectId); DB _id may be ObjectId
+    try:
+        if len(student_id) == 24 and all(c in "0123456789abcdefABCDEF" for c in student_id):
+            return students.find_one({"_id": ObjectId(student_id)})
+    except Exception:
+        pass
+    return None
 
 def update_student(student_id: str, updates: dict, session=None):
     return students.update_one(

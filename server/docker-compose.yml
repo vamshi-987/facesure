@@ -13,6 +13,19 @@ services:
       - mongo 
     environment:
       - MONGO_URI=mongodb://mongo:27017/faceauth
+      # --- SMS configuration ---
+      - SMS_ENABLED=true
+      # Fast2SMS (no DLT / no 6-char sender ID): use route "q" (Quick SMS). Get API key at fast2sms.com
+      - SMS_PROVIDER=fast2sms
+      - FAST2SMS_API_KEY=fRHx2g4QjAaTzp6qSMd1svIkPLFU5VtnC3wyblXheiB09DJOrW50eSv6M8NUu4FfxDpH3BL2EzsqZWlI
+      # Optional: MSG91 (India) requires DLT + 6-char sender ID. Uncomment and set if you use MSG91:
+      # - SMS_PROVIDER=msg91
+      # - MSG91_AUTH_KEY=your_msg91_auth_key
+      # - MSG91_SENDER_ID=FACES
+      # Optional: Twilio (international):
+      # - TWILIO_ACCOUNT_SID=...
+      # - TWILIO_AUTH_TOKEN=...
+      # - TWILIO_PHONE=+1234567890
     restart: unless-stopped
 
   mongo:
