@@ -9,6 +9,7 @@ from schemas.admin_schema import Admin as AdminSchema
 # Core Utilities
 from core.http_errors import conflict
 from core.global_response import success
+from utils.audit_log import logger
 
 # Repositories (Data Layer)
 from data.admin_repo import (
@@ -64,7 +65,9 @@ def get_admin_service(admin_id: str):
 #  REGISTER ADMIN
 # ==========================================================
 def register_admin(admin_id, name, phone, password, college):
+    
     if repo_get_admin(admin_id):
+        logger.log(admin_id, 'admin_register_failed', details='Admin already exists')
         conflict(f"Admin {admin_id} already exists")
 
     admin_doc = AdminSchema(
@@ -87,8 +90,10 @@ def register_admin(admin_id, name, phone, password, college):
                     "assigned_at": datetime.utcnow()
                 }, session=s)
     except PyMongoError:
-         raise HTTPException(status_code=500, detail="Admin DB insertion failed")
+        logger.log(admin_id, 'admin_register_failed', details='DB insertion failed')
+        raise HTTPException(status_code=500, detail="Admin DB insertion failed")
 
+    logger.log(admin_id, 'admin_register_success', details='Admin registered')
     return success("Admin registered successfully", {"admin_id": admin_id})
 
 
@@ -98,6 +103,7 @@ def register_admin(admin_id, name, phone, password, college):
 def update_admin_service(admin_id, updates):
     admin = repo_get_admin(admin_id)
     if not admin:
+        logger.log(admin_id, 'admin_update_failed', details='Admin not found')
         raise HTTPException(status_code=404, detail="Admin not found")
 
     if "password" in updates:
@@ -106,9 +112,11 @@ def update_admin_service(admin_id, updates):
     try:
         repo_update_admin(admin_id, updates)
     except PyMongoError:
+        logger.log(admin_id, 'admin_update_failed', details='DB update failed')
         raise HTTPException(status_code=500, detail="Admin update failed")
 
     updated = find_admin_raw(admin_id)
+    logger.log(admin_id, 'admin_update_success', details='Admin updated')
     return success("Admin updated successfully", updated)
 
 # ==========================================================
@@ -120,8 +128,10 @@ def delete_admin_service(admin_id):
             with s.start_transaction():
                 repo_delete_admin(admin_id)
                 db["user_roles"].delete_many({"user_id": admin_id}, session=s)
+        logger.log(admin_id, 'admin_delete_success', details='Admin deleted')
         return success("Admin deleted successfully")
     except PyMongoError:
+        logger.log(admin_id, 'admin_delete_failed', details='DB delete failed')
         raise HTTPException(status_code=500, detail="Failed to delete admin")
 
 # ==========================================================

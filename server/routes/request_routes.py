@@ -31,13 +31,23 @@ from schemas.api_request_models import (
     RequestFilterBody,
 )
 
+# Rate Limiting
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter
+from fastapi import Request
+
+# Instantiate Limiter
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter(prefix="/request", tags=["Requests"])
 
 # ==================================================
 # STUDENT
 # ==================================================
 @router.post("/create")
-def create_request(payload: RequestCreate, _=Depends(require_roles("STUDENT"))):
+@limiter.limit("10/minute")
+def create_request(request: Request, payload: RequestCreate, _=Depends(require_roles("STUDENT"))):
     return create_new_request(payload.student_id, payload.reason)
 
 

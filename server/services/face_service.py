@@ -4,8 +4,29 @@ import numpy as np
 from datetime import datetime
 from pymongo.errors import PyMongoError
 from fastapi import HTTPException, status
+from utils.audit_log import logger
 
 from insightface.app import FaceAnalysis
+
+# LIVENESS DETECTION (BLINK)
+def detect_blink(face):
+    # Use eye landmarks to check for blink
+    # InsightFace landmark_3d_68: 36-41 (left eye), 42-47 (right eye)
+    left_eye = face.landmark_3d_68[36:42]
+    right_eye = face.landmark_3d_68[42:48]
+    def eye_aspect_ratio(eye):
+        # Compute distances between vertical eye landmarks
+        A = np.linalg.norm(eye[1] - eye[5])
+        B = np.linalg.norm(eye[2] - eye[4])
+        # Compute distance between horizontal eye landmarks
+        C = np.linalg.norm(eye[0] - eye[3])
+        # Eye aspect ratio formula
+        return (A + B) / (2.0 * C)
+    left_ear = eye_aspect_ratio(left_eye)
+    right_ear = eye_aspect_ratio(right_eye)
+    # Typical threshold for blink: EAR < 0.21
+    blinked = left_ear < 0.21 or right_ear < 0.21
+    return blinked
 
 from extensions.mongo import client, db
 from data.faces_repo import (
@@ -103,21 +124,32 @@ def landmark_distance(a, b):
 def verify_face_for_user(user_id, b64):
     face = get_face_by_user(user_id)
     if not face:
+        logger.log(user_id, 'face_verification_failed', details='Face not registered')
         raise HTTPException(404, "Face not registered")
 
     vector = get_vector(face["vector_ref"])
     if not vector:
+        logger.log(user_id, 'face_verification_failed', details='Stored face vector missing')
         raise HTTPException(500, "Stored face vector missing")
 
     saved_emb = np.array(vector["embedding"], np.float32)
 
     img, _ = decode_image(b64)
     emb, lm1 = extract_embedding_and_landmarks(img)
+    # LIVENESS CHECK: Blink detection
+    face = ensure_single_face(img)
+    if not detect_blink(face):
+        logger.log(user_id, 'liveness_failed', details='Blink not detected')
+        raise HTTPException(
+            status_code=403,
+            detail="Liveness check failed: Please blink during authentication."
+        )
 
     score = float(
         np.dot(saved_emb, emb)
         / (np.linalg.norm(saved_emb) * np.linalg.norm(emb))
     )
+    logger.log(user_id, 'face_verification_attempt', details=f'Verification score: {score}')
 
     print(f"[VERIFY] {user_id} | score={score:.3f}")
 

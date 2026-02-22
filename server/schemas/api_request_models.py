@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Literal
+from pydantic import BaseModel, constr, root_validator, model_validator
+from typing import Optional, List, Dict, Literal, Annotated
 
 
 # ================= AUTH =================
@@ -58,9 +58,10 @@ class HODFilterRequest(BaseModel):
 class StudentCreateRequest(BaseModel):
     id: str
     name: str
-    phone: str
-    father_mobile: Optional[str] = None
-    mother_mobile: Optional[str] = None
+    # ...existing code...
+    phone: Annotated[str, constr(pattern=r'^\d{10}$')]
+    father_mobile: Optional[Annotated[str, constr(pattern=r'^\d{10}$')]] = None
+    mother_mobile: Optional[Annotated[str, constr(pattern=r'^\d{10}$')]] = None
     year: int
     course: str
     section: str
@@ -68,11 +69,22 @@ class StudentCreateRequest(BaseModel):
     password: str
     created_by: str
 
+    # ...existing code...
+    @model_validator(mode="after")
+    def mobiles_must_not_match(self):
+        phone = self.phone
+        father = self.father_mobile
+        mother = self.mother_mobile
+        if phone and father and mother:
+            if len({phone, father, mother}) < 3:
+                raise ValueError('Student, father, and mother mobile numbers must all be different.')
+        return self
+
 
 # STUDENT -> REGISTER FACE AFTER LOGIN
 class StudentFaceRegisterRequest(BaseModel):
     student_id: str
-    image_b64: str
+    image_b64: Annotated[str, constr(min_length=100, max_length=100000, pattern=r'^([A-Za-z0-9+/=]+)$')]
 
 
 # STUDENT -> UPDATE OWN PROFILE (limited fields)
@@ -85,14 +97,25 @@ class StudentSelfUpdateRequest(BaseModel):
 # ADMIN -> UPDATE STUDENT (all fields including parent contacts)
 class StudentAdminUpdateRequest(BaseModel):
     name: Optional[str] = None
-    phone: Optional[str] = None
-    father_mobile: Optional[str] = None
-    mother_mobile: Optional[str] = None
+    phone: Optional[Annotated[str, constr(pattern=r'^\d{10}$')]] = None
+    father_mobile: Optional[Annotated[str, constr(pattern=r'^\d{10}$')]] = None
+    mother_mobile: Optional[Annotated[str, constr(pattern=r'^\d{10}$')]] = None
     year: Optional[int] = None
     course: Optional[str] = None
     section: Optional[str] = None
     college: Optional[str] = None
     password: Optional[str] = None
+
+    from pydantic import model_validator
+    @model_validator(mode="after")
+    def mobiles_must_not_match(self):
+        phone = self.phone
+        father = self.father_mobile
+        mother = self.mother_mobile
+        if phone and father and mother:
+            if len({phone, father, mother}) < 3:
+                raise ValueError('Student, father, and mother mobile numbers must all be different.')
+        return self
 
 
 class StudentFilterRequest(BaseModel):
@@ -127,16 +150,16 @@ class GuardUpdateRequest(BaseModel):
 class FaceReplaceRequest(BaseModel):
     user_id: str
     user_type: str
-    image_b64: str
+    image_b64: Annotated[str, constr(min_length=100, max_length=100000, pattern=r'^([A-Za-z0-9+/=]+)$')]
 
 
 class FaceVerifyRequest(BaseModel):
     user_id: str
-    image_b64: str
+    image_b64: Annotated[str, constr(min_length=100, max_length=100000, pattern=r'^([A-Za-z0-9+/=]+)$')]
 
 
 class FaceValidateRequest(BaseModel):
-    image_b64: str
+    image_b64: Annotated[str, constr(min_length=100, max_length=100000, pattern=r'^([A-Za-z0-9+/=]+)$')]
 
 
 # ================= REQUESTS =================

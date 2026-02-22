@@ -21,8 +21,18 @@ router = APIRouter(prefix="/faculty", tags=["Faculty"])
 # ==================================================
 # CREATE FACULTY
 # ==================================================
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter
+from fastapi import Request
+
+# Instantiate Limiter
+limiter = Limiter(key_func=get_remote_address)
+
 @router.post("/create")
+@limiter.limit("5/minute")
 def create_faculty(
+    request: Request,
     payload: FacultyCreateRequest,
     _=Depends(require_roles("SUPER_ADMIN", "ADMIN"))
 ):

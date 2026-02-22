@@ -1,4 +1,7 @@
 from fastapi import HTTPException, status
+from utils.audit_log import logger
+from datetime import datetime, timedelta
+from extensions.mongo import db
 
 from security.passwords import verify_password
 from security.jwt_tokens import create_access_token, create_refresh_token
@@ -30,6 +33,21 @@ USER_LOOKUP_ORDER = [
 # LOGIN
 # ==========================================================
 def login(user_id: str, password: str):
+    # Account lockout logic
+    users_collection = db["users"] if "users" in db.list_collection_names() else None
+    lockout_threshold = 5
+    lockout_minutes = 15
+    user_doc = None
+    if users_collection:
+        user_doc = users_collection.find_one({"_id": user_id})
+        if user_doc:
+            locked_until = user_doc.get("locked_until")
+            if locked_until and datetime.utcnow() < locked_until:
+                logger.log(user_id, 'login_failed', details='Account locked')
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Account locked until {locked_until}"
+                )
 
     user = None
     for fn in USER_LOOKUP_ORDER:
@@ -39,12 +57,22 @@ def login(user_id: str, password: str):
             break
 
     if not user:
+        logger.log(user_id, 'login_failed', details='User not found')
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
 
     if not verify_password(user.get("password_hash", ""), password):
+        # Increment failed attempts
+        if users_collection and user_doc:
+            failed_attempts = user_doc.get("failed_attempts", 0) + 1
+            update_fields = {"failed_attempts": failed_attempts}
+            if failed_attempts >= lockout_threshold:
+                update_fields["locked_until"] = datetime.utcnow() + timedelta(minutes=lockout_minutes)
+                logger.log(user_id, 'account_locked', details=f'Exceeded {lockout_threshold} failed attempts')
+            users_collection.update_one({"_id": user_id}, {"$set": update_fields})
+        logger.log(user_id, 'login_failed', details='Invalid password')
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid password"
@@ -52,6 +80,7 @@ def login(user_id: str, password: str):
 
     mapping = get_user_role(user_id)
     if not mapping:
+        logger.log(user_id, 'login_failed', details='No role assigned')
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User has no role assigned"
@@ -75,6 +104,10 @@ def login(user_id: str, password: str):
     if role_name == "STUDENT":
         response_data["face_id"] = user.get("face_id")
 
+    # Reset failed attempts on successful login
+    if users_collection and user_doc:
+        users_collection.update_one({"_id": user_id}, {"$set": {"failed_attempts": 0, "locked_until": None}})
+    logger.log(user_id, 'login_success', details='Login successful')
     return success("Login successful", response_data)
 
 

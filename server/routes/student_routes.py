@@ -41,11 +41,20 @@ def create_student(payload: StudentCreateRequest, _=Depends(require_roles("ADMIN
     )
 
 
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter
+from fastapi import Request
+
+# Instantiate Limiter
+limiter = Limiter(key_func=get_remote_address)
+
 # ======================================================
 # STUDENT -> REGISTER FACE (AFTER LOGIN)
 # ======================================================
 @router.post("/register-face")
-def register_student_face(payload: StudentFaceRegisterRequest, _=Depends(require_roles("STUDENT"))):
+@limiter.limit("5/minute")
+def register_student_face(request: Request, payload: StudentFaceRegisterRequest, _=Depends(require_roles("STUDENT"))):
     return register_student_face_service(
         student_id=payload.student_id,
         image_b64=payload.image_b64

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException,Request
 from security.dependencies import require_roles
 from schemas.api_request_models import AdminCreateRequest, AdminUpdateRequest
 from services.admin_service import (
@@ -20,8 +20,17 @@ def get_all_route(_=Depends(require_roles("SUPER_ADMIN", "ADMIN"))):
 def get_admin_profile(admin_id: str):
     return get_admin_service(admin_id)
 
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter
+from fastapi import Request
+
+# Instantiate Limiter
+limiter = Limiter(key_func=get_remote_address)
+
 @router.post("/create")
-def create_admin_route(payload: AdminCreateRequest, _=Depends(require_roles("SUPER_ADMIN"))):
+@limiter.limit("5/minute")
+def create_admin_route(request: Request, payload: AdminCreateRequest, _=Depends(require_roles("SUPER_ADMIN"))):
     return register_admin(payload.id, payload.name, payload.phone, payload.password, payload.college)
 
 @router.put("/update/{admin_id}")

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from security.dependencies import require_roles
 from services.face_service import (
     verify_then_replace_face,
@@ -12,14 +12,23 @@ from schemas.api_request_models import (
 )
 from core.global_response import success
 
+# Rate Limiting
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter
+
+
+
 router = APIRouter(prefix="/face", tags=["Face Biometrics"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ==========================================================
 # 1. FACE REGISTRATION
 # ==========================================================
 @router.post("/register")
-def register_face_route(
+@limiter.limit("5/minute")
+def register_face_route(request: Request,
     payload: FaceReplaceRequest,
     _=Depends(require_roles("STUDENT", "HOD", "GUARD", "ADMIN", "SUPER_ADMIN"))
 ):
@@ -42,7 +51,8 @@ def register_face_route(
 # 2. FACE VERIFICATION
 # ==========================================================
 @router.post("/verify")
-def verify_face_route(
+@limiter.limit("10/minute")
+def verify_face_route(request: Request,
     payload: FaceVerifyRequest,
     _=Depends(require_roles("STUDENT", "HOD", "GUARD", "ADMIN", "SUPER_ADMIN"))
 ):
@@ -65,7 +75,8 @@ def verify_face_route(
 # 3. FACE QUALITY VALIDATION (Pre-check)
 # ==========================================================
 @router.post("/validate")
-def validate_face_route(payload: FaceValidateRequest):
+@limiter.limit("10/minute")
+def validate_face_route(request: Request, payload: FaceValidateRequest):
     """
     Validates face quality before registration.
     Ensures:
@@ -80,7 +91,8 @@ def validate_face_route(payload: FaceValidateRequest):
 # 4. VERIFY & REPLACE (SECURE UPDATE)
 # ==========================================================
 @router.post("/verify-replace")
-def verify_and_replace_face_route(
+@limiter.limit("5/minute")
+def verify_and_replace_face_route(request: Request,
     payload: FaceReplaceRequest,
     _=Depends(require_roles("STUDENT", "HOD", "GUARD", "ADMIN", "SUPER_ADMIN"))
 ):

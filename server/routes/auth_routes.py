@@ -1,18 +1,27 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 from services.auth_service import login, rotate_refresh_token
 from schemas.api_request_models import LoginRequest, LogoutRequest
 from security.jwt_tokens import decode_token
 from data.refresh_token_repo import is_refresh_token_valid,revoke_refresh_token
 from core.global_response import success
 
+# Rate Limiting
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter
+
+
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+# Instantiate Limiter
+limiter = Limiter(key_func=get_remote_address)
 
 # ---------------------------------------------------
 # LOGIN
 # ---------------------------------------------------
 @router.post("/login")
-def login_route(payload: LoginRequest):
+@limiter.limit("5/minute")
+def login_route(request: Request, payload: LoginRequest):
     return login(payload.userId, payload.password)
 
 
@@ -20,7 +29,8 @@ def login_route(payload: LoginRequest):
 # REFRESH TOKEN
 # ---------------------------------------------------
 @router.post("/refresh")
-def refresh_route(payload: dict):
+@limiter.limit("10/minute")
+def refresh_route(request: Request, payload: dict):
     refresh_token = payload.get("refresh_token")
 
     if not refresh_token:

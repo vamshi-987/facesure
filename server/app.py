@@ -4,6 +4,10 @@ from fastapi.responses import JSONResponse
 import os
 import socket
 
+# Rate Limiting
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+
 from extensions.cors import init_cors
 from services.bootstrap_service import init_bootstrap
 from core.global_response import error
@@ -21,6 +25,34 @@ from routes.mentor_mapping_routes import router as mentor_mapping_router
 from routes.faculty_routes import router as faculty_router
 
 app = FastAPI(title="FaceAuth System", version="2.0")
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(429, _rate_limit_exceeded_handler)
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse
+from starlette.responses import Response
+
+# Security Headers Middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self';"
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Referrer-Policy'] = 'no-referrer'
+        return response
+
+class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if request.url.scheme == "http":
+            url = request.url.replace(scheme="https")
+            return RedirectResponse(url)
+        return await call_next(request)
+
+import os
+if os.environ.get("ENV", "development") == "production":
+    app.add_middleware(HTTPSRedirectMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 

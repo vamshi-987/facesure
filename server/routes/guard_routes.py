@@ -1,4 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException # Added HTTPException
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter
+from fastapi import Request
+
+# Instantiate Limiter
+limiter = Limiter(key_func=get_remote_address)
 from services.guard_service import (
     register_guard,
     update_guard_service,
@@ -16,7 +23,8 @@ router = APIRouter(prefix="/guard", tags=["Guard"])
 # CREATE GUARD
 # ==========================================================
 @router.post("/create")
-def create_guard(payload: GuardCreateRequest, _=Depends(require_roles("SUPER_ADMIN", "ADMIN"))):
+@limiter.limit("5/minute")
+def create_guard(request: Request, payload: GuardCreateRequest, _=Depends(require_roles("SUPER_ADMIN", "ADMIN"))):
     return register_guard(
         guard_id=payload.id,
         name=payload.name,
