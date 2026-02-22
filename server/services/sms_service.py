@@ -41,8 +41,10 @@ def _send_msg91(phone: str, message: str) -> bool:
             "message": message[:1600],
             "route": "4",
         })
-        req = urllib.request.Request(f"{url}?{params}")
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        full_url = f"{url}?{params}"
+        _validate_outbound_url(full_url)
+        req = urllib.request.Request(full_url)
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
             return resp.status == 200
     except Exception as e:
         logger.warning("MSG91 SMS failed: %s", e)
@@ -81,6 +83,7 @@ def _send_fast2sms(phone: str, message: str) -> bool:
         
         print(f"[SMS] Fast2SMS POST: route=q, numbers={num}, message_len={len(message)}")
         
+        _validate_outbound_url(url)
         req = urllib.request.Request(url, data=data, method="POST")
         req.add_header("Authorization", api_key)
         req.add_header("Content-Type", "application/json")

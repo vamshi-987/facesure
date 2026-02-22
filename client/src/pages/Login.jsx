@@ -40,6 +40,12 @@ export default function Login() {
     } catch (err) {
       console.error("Login error:", err);
       // Axios error shape: err.response?.data
+      if (err?.response?.status === 429) {
+        setMsg("Too many login attempts. Please wait and try again.");
+        setAlertType("error");
+        scrollToAlert();
+        return;
+      }
       const serverMsg = err?.response?.data?.detail || err?.response?.data?.message;
       setMsg(serverMsg || "Login failed. Enter valid ID and try again.");
       setAlertType("error");
