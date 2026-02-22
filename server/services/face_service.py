@@ -1,3 +1,26 @@
+# ===============================================================
+# ASYNC FACE PROCESSING (ThreadPoolExecutor)
+# ===============================================================
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+
+# Thread pool for CPU-intensive face processing
+face_executor = ThreadPoolExecutor(max_workers=4)
+
+def extract_embedding_and_landmarks(img):
+    faces = face_model.get(img, max_num=1)
+    if faces:
+        return faces[0].embedding, faces[0].landmark_3d_68
+    return None, None
+
+async def extract_embedding_async(img):
+    """Run face extraction in thread pool"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        face_executor,
+        extract_embedding_and_landmarks,
+        img
+    )
 import cv2
 import base64
 import numpy as np
@@ -41,15 +64,43 @@ from data.face_vectors_repo import (
     search_similar_faces
 )
 
+
 # ===============================================================
-# MODEL INITIALIZATION
+# MODEL INITIALIZATION (Singleton with GPU support)
 # ===============================================================
-try:
-    face_model = FaceAnalysis(name="buffalo_l")
-    face_model.prepare(ctx_id=-1, det_size=(640, 640))
-except Exception as e:
-    print("❌ Face model load failed:", e)
-    face_model = None
+import threading
+
+class FaceModelSingleton:
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialize_model()
+        return cls._instance
+
+    def _initialize_model(self):
+        try:
+            import torch
+            ctx_id = 0 if torch.cuda.is_available() else -1
+            self.model = FaceAnalysis(
+                name="buffalo_l",
+                providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+            )
+            self.model.prepare(ctx_id=ctx_id, det_size=(640, 640))
+            print(f"✅ Face model loaded on {'GPU' if ctx_id == 0 else 'CPU'}")
+        except Exception as e:
+            print(f"❌ Face model load failed: {e}")
+            self.model = None
+
+    def get_model(self):
+        return self.model
+
+# Use singleton
+face_model = FaceModelSingleton().get_model()
 
 
 # ===============================================================
