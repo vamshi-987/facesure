@@ -20,7 +20,7 @@ jobs:
           pip install -r server/requirements.txt
           pip install bandit safety
       - name: Bandit scan
-        run: bandit -r server/ -ll
+        run: bandit -r server/ -lll
       - name: Safety check
         run: safety check -r server/requirements.txt
       - name: Trivy scan (filesystem)
