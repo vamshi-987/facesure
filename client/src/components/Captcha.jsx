@@ -8,6 +8,7 @@ export default function Captcha({ onValidate }) {
   useEffect(() => {
     generate();
   }, []);
+  
 
   const generate = () => {
     const x = Math.floor(Math.random() * 10);
