@@ -1,19 +1,12 @@
-# config.py
-class Config:
-    MONGO_URI = "mongodb+srv://vamshivardhan987_db_user:yHa8P9nAfn5dMyss@cluster0.l4bjzcp.mongodb.net/faceAuthDB?retryWrites=true&w=majority&appName=Cluster0"
-    JWT_SECRET = "SUPER_SECRET_KEY"
 
-    SUPERADMINS = [
-        {
-            "_id": "superadmin",
-            "password": "Super@123",
-            "name": "Super Admin One",
-            "phone": "9999999999"
-        },
-        {
-            "_id": "superadmin2",
-            "password": "Super@123",
-            "name": "Super Admin Two",
-            "phone": "8888888888"
-        }
-    ]
+# config.py
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class Config:
+    MONGO_URI = os.getenv("MONGO_URI")
+    JWT_SECRET = os.getenv("JWT_SECRET")
+    FACE_ENCRYPTION_KEY = os.getenv("FACE_ENCRYPTION_KEY")
+    # Remove hardcoded superadmin credentials. Manage superadmins securely (e.g., via environment, admin panel, or secure vault)

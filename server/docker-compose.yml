@@ -12,8 +12,6 @@ services:
     depends_on:
       - mongo 
     environment:
-      - MONGO_URI=mongodb://mongo:27017/faceauth
-      # --- SMS configuration ---
       - SMS_ENABLED=true
       # Fast2SMS (no DLT / no 6-char sender ID): use route "q" (Quick SMS). Get API key at fast2sms.com
       - SMS_PROVIDER=fast2sms

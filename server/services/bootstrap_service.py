@@ -18,19 +18,23 @@ def init_bootstrap():
         create_role_if_not_exists("FACULTY")
         create_role_if_not_exists("MENTOR")
 
-        for sa in Config.SUPERADMINS:
-            existing = get_superadmin_by_id(sa["_id"])
-            if existing:
-                continue
+        # Load superadmin info from environment variables (set in .env)
+        import os
+        superadmin_id = os.getenv("SUPERADMIN_USERNAME")
+        superadmin_password = os.getenv("SUPERADMIN_PASSWORD")
+        superadmin_name = os.getenv("SUPERADMIN_NAME", "Super Admin")
+        superadmin_phone = os.getenv("SUPERADMIN_PHONE", "9999999999")
 
-            create_superadmin({
-                "_id": sa["_id"],
-                "name": sa["name"],
-                "phone": sa["phone"],
-                "password_hash": hash_password(sa["password"])
-            })
-
-            assign_role(sa["_id"], role_super["_id"])
+        if superadmin_id and superadmin_password:
+            existing = get_superadmin_by_id(superadmin_id)
+            if not existing:
+                create_superadmin({
+                    "_id": superadmin_id,
+                    "name": superadmin_name,
+                    "phone": superadmin_phone,
+                    "password_hash": hash_password(superadmin_password)
+                })
+                assign_role(superadmin_id, role_super["_id"])
 
     except PyMongoError:
         raise HTTPException(
