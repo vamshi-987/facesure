@@ -1,5 +1,5 @@
 from datetime import datetime
-from pymongo.errors import PyMongoError
+from pymongo.errors import PyMongoError,DuplicateKeyError
 from fastapi import HTTPException, status
 
 # Security and Schemas
@@ -78,6 +78,8 @@ def register_admin(admin_id, name, phone, password, college):
         college=college
     ).model_dump(by_alias=True)
 
+
+    
     try:
         with client.start_session() as s:
             with s.start_transaction():
@@ -89,6 +91,9 @@ def register_admin(admin_id, name, phone, password, college):
                     "role_id": role_data["_id"],
                     "assigned_at": datetime.utcnow()
                 }, session=s)
+    except DuplicateKeyError as e:
+        logger.log(admin_id, 'admin_register_failed', details='Duplicate key error')
+        raise HTTPException(status_code=409, detail="Phone or email already exists. Please use unique values.")
     except PyMongoError:
         logger.log(admin_id, 'admin_register_failed', details='DB insertion failed')
         raise HTTPException(status_code=500, detail="Admin DB insertion failed")

@@ -1,8 +1,15 @@
+from fastapi.security.api_key import APIKeyHeader
+from fastapi import Security, HTTPException
+import uuid
 from fastapi import FastAPI, Request
+from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.responses import JSONResponse
 # from fastapi.staticfiles import StaticFiles
 import os
 import socket
+import sentry_sdk
+from pythonjsonlogger import jsonlogger
+import logging
 
 # Rate Limiting
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -25,14 +32,38 @@ from routes.mentor_mapping_routes import router as mentor_mapping_router
 from routes.faculty_routes import router as faculty_router
 
 app = FastAPI(title="FaceAuth System", version="2.0")
+instrumentator = Instrumentator().instrument(app)
+instrumentator.expose(app)
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(429, _rate_limit_exceeded_handler)
+
+# Sentry initialization
+sentry_sdk.init(dsn=os.environ.get("SENTRY_DSN", ""))
+
+# Structured JSON logging
+logger = logging.getLogger()
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter()
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
+logger.setLevel(logging.INFO)
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 from starlette.responses import Response
 
 # Security Headers Middleware
+# Security Headers Middleware
+
+# Request ID Tracing Middleware
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        request_id = str(uuid.uuid4())
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
@@ -49,10 +80,11 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
             return RedirectResponse(url)
         return await call_next(request)
 
-import os
+
 if os.environ.get("ENV", "development") == "production":
     app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestIDMiddleware)
 
 
 
@@ -78,6 +110,7 @@ app.include_router(request_router)
 app.include_router(mentor_mapping_router)
 app.include_router(faculty_router)
 app.include_router(admin_router, prefix="/super_admin") # Handles /super_admin/...
+
 
 
 # ---------------------------------------------------------
@@ -108,6 +141,27 @@ async def on_start():
     print("="*60 + "\n")
 
 
+
+# Health check endpoint
+# Health check endpoint
+
+# API Key validation dependency
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+async def get_api_key(api_key: str = Security(api_key_header)):
+    if api_key != os.environ.get("API_SECRET_KEY", "supersecret"):
+        raise HTTPException(status_code=403, detail="Invalid API Key")
+
+# Health check endpoint
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.get("/")
 def home():
     return {"message": "Server running"}
+
+# Example protected endpoint
+@app.get("/protected")
+async def protected(api_key: str = Security(get_api_key)):
+    return {"message": "You accessed a protected endpoint!"}

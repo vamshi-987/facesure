@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+
+
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 
@@ -9,10 +11,14 @@ export default function StudentDashboard() {
   const [openProfile, setOpenProfile] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Lazy load Profile component
+  const Profile = lazy(() => import("./Profile"));
+
   const userId = localStorage.getItem("userId");
 
   useEffect(() => {
     fetchInitialData();
+    // eslint-disable-next-line
   }, []);
 
   const fetchInitialData = async () => {
@@ -33,27 +39,27 @@ export default function StudentDashboard() {
   };
 
   const handleSendRequest = async () => {
-  if (!user?.face_id) {
-    alert("You must register your face before sending a Gate Pass request.");
-    navigate("/student/register-face");
-    return;
-  }
+    if (!user?.face_id) {
+      alert("You must register your face before sending a Gate Pass request.");
+      navigate("/student/register-face");
+      return;
+    }
 
-  const reason = prompt("Enter reason for Gate Pass:");
-  if (!reason) return;
+    const reason = prompt("Enter reason for Gate Pass:");
+    if (!reason) return;
 
-  try {
-    const payload = {
-      student_id: user.id || userId,
-       reason,
-    };
+    try {
+      const payload = {
+        student_id: user.id || userId,
+        reason,
+      };
 
-    await api.post("/request/create", payload);
-    alert("Request sent successfully!");
-    fetchInitialData();
-  } catch (err) {
-    alert("Failed to send request.");
-  }
+      await api.post("/request/create", payload);
+      alert("Request sent successfully!");
+      fetchInitialData();
+    } catch (err) {
+      alert("Failed to send request.");
+    }
   };
 
   if (loading) return <div className="p-10 text-center font-bold">Loading Dashboard...</div>;
@@ -70,33 +76,22 @@ export default function StudentDashboard() {
             className="flex items-center gap-4 bg-white/10 p-1 pr-4 rounded-full hover:bg-white/20 transition"
           >
             <img 
-              src={user?.student_face ? `data:image/jpeg;base64,${user.student_face}` : `https://ui-avatars.com/api/?name=${user?.name}&background=random`} 
+              src={user?.student_face ? `data:image/jpeg;base64,${user.student_face}` : `https://ui-avatars.com/api/?name=${user?.name ? encodeURIComponent(user.name) : 'Student'}&background=random`} 
               alt="profile" 
               className="w-10 h-10 rounded-full border-2 border-indigo-400 object-cover" 
+              onError={e => {
+                e.target.onerror = null;
+                e.target.src = `https://ui-avatars.com/api/?name=${user?.name ? encodeURIComponent(user.name) : 'Student'}&background=random`;
+              }}
             />
             <span className="text-sm font-bold uppercase">{user?.name || "Student"}</span>
           </button>
 
-          {openProfile && (
-            <div className="absolute right-0 mt-3 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl z-50 border dark:border-gray-700 overflow-hidden">
-              <div className="p-4 border-b dark:border-gray-700">
-                <p className="text-xs text-gray-500 uppercase font-bold">Logged in as</p>
-                <p className="text-sm font-black text-indigo-600 truncate">{userId}</p>
-              </div>
-              <button 
-                onClick={() => navigate("/student/profile")}
-                className="block w-full text-left px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-semibold"
-              >
-                My Profile
-              </button>
-              <button 
-                onClick={() => { localStorage.clear(); navigate("/login"); }} 
-                className="block w-full text-left px-5 py-3 hover:bg-red-50 text-red-600 text-sm font-bold"
-              >
-                Logout
-              </button>
-            </div>
-          )}
+          <Suspense fallback={<div className="absolute right-0 mt-3 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl z-50 border dark:border-gray-700 overflow-hidden p-4">Loading profile...</div>}>
+            {openProfile && (
+              <Profile user={user} onClose={() => setOpenProfile(false)} />
+            )}
+          </Suspense>
         </div>
       </header>
 

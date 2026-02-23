@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Webcam from "react-webcam";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import imageCompression from 'browser-image-compression';
 
 export default function RegisterFace() {
   const webcamRef = useRef(null);
@@ -211,10 +212,24 @@ export default function RegisterFace() {
     setError("");
 
     try {
+      // Convert base64 to File for compression
+      const response = await fetch(imgSrc);
+      const blob = await response.blob();
+      const file = new File([blob], "face.jpg", { type: blob.type });
+      // Compress image
+      const compressedFile = await imageCompression(file, { maxSizeMB: 0.5, maxWidthOrHeight: 512 });
+      // Convert compressed file back to base64
+      const compressedBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(compressedFile);
+      });
+
       await api.post("/face/register", {
         user_id: userId,
         user_type: userType,
-        image_b64: imgSrc.split(",")[1],
+        image_b64: compressedBase64,
       });
 
       localStorage.setItem("face_id", "PRESENT");
@@ -228,10 +243,10 @@ export default function RegisterFace() {
 
       setTimeout(() => navigate("/student", { replace: true }), 1200);
     } catch (err) {
-       const msg =
-        err.response?.data?.detail ||err.response?.data?.message ||"Face registration failed";
-        setToast({ type: "error", msg });
-    }finally {
+      const msg =
+        err.response?.data?.detail || err.response?.data?.message || "Face registration failed";
+      setToast({ type: "error", msg });
+    } finally {
       setLoading(false);
     }
   };

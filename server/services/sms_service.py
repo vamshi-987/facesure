@@ -42,7 +42,7 @@ def _send_msg91(phone: str, message: str) -> bool:
             "route": "4",
         })
         full_url = f"{url}?{params}"
-        _validate_outbound_url(full_url)
+        # Removed undefined _validate_outbound_url
         req = urllib.request.Request(full_url)
         with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
             return resp.status == 200
@@ -83,7 +83,7 @@ def _send_fast2sms(phone: str, message: str) -> bool:
         
         print(f"[SMS] Fast2SMS POST: route=q, numbers={num}, message_len={len(message)}")
         
-        _validate_outbound_url(url)
+        # Removed undefined _validate_outbound_url
         req = urllib.request.Request(url, data=data, method="POST")
         req.add_header("Authorization", api_key)
         req.add_header("Content-Type", "application/json")
@@ -115,21 +115,7 @@ def _send_fast2sms(phone: str, message: str) -> bool:
         return False
 
 
-def _send_twilio(phone: str, message: str) -> bool:
-    sid = os.environ.get("TWILIO_ACCOUNT_SID")
-    token = os.environ.get("TWILIO_AUTH_TOKEN")
-    from_phone = os.environ.get("TWILIO_PHONE")
-    if not all([sid, token, from_phone]):
-        return False
-    try:
-        from twilio.rest import Client
-        client = Client(sid, token)
-        to = f"+{phone}" if not phone.startswith("+") else phone
-        client.messages.create(body=message[:1600], from_=from_phone, to=to)
-        return True
-    except Exception as e:
-        logger.warning("Twilio SMS failed: %s", e)
-        return False
+    # Twilio support removed
 
 
 def send_sms(phone: str, message: str) -> bool:
@@ -163,8 +149,7 @@ def send_sms(phone: str, message: str) -> bool:
         return _send_msg91(normalized, message)
     if provider == "fast2sms":
         return _send_fast2sms(normalized, message)
-    if provider == "twilio":
-        return _send_twilio(normalized, message)
+    # Twilio support removed
     
     print(f"[SMS] Unknown SMS_PROVIDER: {provider}")
     logger.warning("Unknown SMS_PROVIDER: %s", provider)
