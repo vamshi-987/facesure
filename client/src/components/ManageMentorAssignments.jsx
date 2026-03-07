@@ -20,15 +20,10 @@ export default function ManageMentorAssignments({ onClose }) {
   });
 
   const isHODFaculty = (faculty) => {
-        if (!faculty.years || !faculty.courses) return false;
-
-        return faculty.years.some((y) =>
-          hodProfile.years?.includes(y)
-        ) &&
-        faculty.courses.some((c) =>
-          hodProfile.courses?.includes(c)
-        );
-      };
+    // If the backend provides a 'role' field, use it
+    if (faculty.role && faculty.role.toUpperCase() === "HOD") return true;
+    return false;
+  };
 
   /* ================= FETCH INITIAL DATA ================= */
   useEffect(() => {
@@ -129,7 +124,9 @@ export default function ManageMentorAssignments({ onClose }) {
       fetchInitialData(); // refresh assignment info
 
     } catch (err) {
-      alert(err.response?.data?.detail || "Mentor assignment failed");
+      // Try to show backend error message if available
+      const backendMsg = err.response?.data?.detail || err.response?.data?.message || err.message;
+      alert(backendMsg || "Mentor assignment failed");
     }
   };
 
