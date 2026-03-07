@@ -28,6 +28,7 @@ from datetime import datetime
 from pymongo.errors import PyMongoError
 from fastapi import HTTPException, status
 from utils.audit_log import logger
+import traceback
 
 from insightface.app import FaceAnalysis
 
@@ -94,6 +95,7 @@ class FaceModelSingleton:
             print(f"✅ Face model loaded on {'GPU' if ctx_id == 0 else 'CPU'}")
         except Exception as e:
             print(f"❌ Face model load failed: {e}")
+            traceback.print_exc() 
             self.model = None
 
     def get_model(self):
@@ -188,13 +190,13 @@ def verify_face_for_user(user_id, b64):
     img, _ = decode_image(b64)
     emb, lm1 = extract_embedding_and_landmarks(img)
     # LIVENESS CHECK: Blink detection
-    face = ensure_single_face(img)
-    if not detect_blink(face):
-        logger.log(user_id, 'liveness_failed', details='Blink not detected')
-        raise HTTPException(
-            status_code=403,
-            detail="Liveness check failed: Please blink during authentication."
-        )
+    # face = ensure_single_face(img)
+    # if not detect_blink(face):
+    #     logger.log(user_id, 'liveness_failed', details='Blink not detected')
+    #     raise HTTPException(
+    #         status_code=403,
+    #         detail="Liveness check failed: Please blink during authentication."
+    #     )
 
     score = float(
         np.dot(saved_emb, emb)

@@ -13,7 +13,7 @@ client = MongoClient(
 	socketTimeoutMS=20000,
 	retryWrites=True,
 	w="majority",  # Write concern for durability
-	readPreference="primaryPreferred"  # Read from primary, fallback to secondary
+	readPreference="primary"  # Read from primary, fallback to secondary
 )
 
 db = client["faceAuthDB"]
