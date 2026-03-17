@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import api from "../services/api";
 
 export default function ManageMentorAssignments({ onClose }) {
+
   const [mentors, setMentors] = useState([]);
   const [mentorAssignments, setMentorAssignments] = useState({});
   const [selectedMentors, setSelectedMentors] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [hodProfile, setHodProfile] = useState({
+    _id: "",
     college: "",
     courses: []
   });
@@ -19,33 +21,37 @@ export default function ManageMentorAssignments({ onClose }) {
     section: "A"
   });
 
+  /* ================= HOD CHECK ================= */
+
   const isHODFaculty = (faculty) => {
-    // If the backend provides a 'role' field, use it
-    if (faculty.role && faculty.role.toUpperCase() === "HOD") return true;
-    return false;
+    return faculty.role?.toUpperCase() === "HOD";
   };
 
-  /* ================= FETCH INITIAL DATA ================= */
+  /* ================= INITIAL DATA ================= */
+
   useEffect(() => {
     fetchInitialData();
   }, []);
 
   const fetchInitialData = async () => {
+
     try {
       setLoading(true);
 
       const userId = localStorage.getItem("userId");
       const role = localStorage.getItem("role");
 
-      const pathPrefix =
-        role === "HOD" ? "faculty" : role.toLowerCase();
+      const pathPrefix = role === "HOD" ? "faculty" : role?.toLowerCase();
 
+      /* -------- FETCH HOD -------- */
 
-      // 🔹 Fetch HOD
       const hodRes = await api.get(`/${pathPrefix}/${userId}`);
       const hod = hodRes.data?.data;
 
+      if (!hod) throw new Error("HOD profile not found");
+
       setHodProfile(hod);
+
       setFormData({
         college: hod.college,
         course: "",
@@ -53,27 +59,27 @@ export default function ManageMentorAssignments({ onClose }) {
         section: "A"
       });
 
-      // 🔹 Fetch faculty
-      const facultyRes = await api.get(`/faculty/college/${hod.college}`);
-      
+      /* -------- FETCH FACULTY -------- */
 
+      const facultyRes = await api.get(`/faculty/college/${hod.college}`);
       const facultyList = facultyRes.data?.data || [];
+
       setMentors(facultyList);
 
-      // 🔹 Fetch mentor mappings (existing assignments)
+      /* -------- FETCH MENTOR MAPPINGS -------- */
+
       const mappingRes = await api.get("/mentor-mapping/all");
       const mappings = mappingRes.data?.data || [];
 
-      // Build lookup: mentor_id → assignments[]
-      const map = {};
-      mappings.forEach((m) => {
-        if (!map[m.mentor_id]) map[m.mentor_id] = [];
-        map[m.mentor_id].push(
+      const assignmentMap = mappings.reduce((acc, m) => {
+        if (!acc[m.mentor_id]) acc[m.mentor_id] = [];
+        acc[m.mentor_id].push(
           `${m.course} - Year ${m.year} - Sec ${m.section}`
         );
-      });
+        return acc;
+      }, {});
 
-      setMentorAssignments(map);
+      setMentorAssignments(assignmentMap);
 
     } catch (err) {
       console.error(err);
@@ -84,24 +90,54 @@ export default function ManageMentorAssignments({ onClose }) {
   };
 
   /* ================= MENTOR SELECTION ================= */
+
   const toggleMentorSelection = (mentorId) => {
+
     if (selectedMentors.includes(mentorId)) {
-      setSelectedMentors(selectedMentors.filter((m) => m !== mentorId));
+      setSelectedMentors(
+        selectedMentors.filter((id) => id !== mentorId)
+      );
       return;
     }
-    if (selectedMentors.length === 2) {
-      alert("You must select exactly 2 mentors");
+
+    if (selectedMentors.length >= 2) {
+      alert("Only 2 mentors can be selected");
       return;
     }
+
     setSelectedMentors([...selectedMentors, mentorId]);
   };
 
-  /* ================= SUBMIT ================= */
+  /* ================= FORM SUBMIT ================= */
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.course || !formData.year || !formData.section) {
+    const normalizedSection = (formData.section || "")
+      .trim()
+      .toUpperCase();
+
+    const yearNumber = Number(formData.year);
+
+    /* -------- VALIDATIONS -------- */
+
+    if (!formData.course || !formData.year || !normalizedSection) {
       alert("Please fill all fields");
+      return;
+    }
+
+    if (!hodProfile.courses?.includes(formData.course)) {
+      alert("Please select a valid course");
+      return;
+    }
+
+    if (!Number.isInteger(yearNumber) || yearNumber < 1 || yearNumber > 4) {
+      alert("Please select a valid year (1-4)");
+      return;
+    }
+
+    if (!/^[A-Z]$/.test(normalizedSection)) {
+      alert("Section must be a single letter (A-Z)");
       return;
     }
 
@@ -111,34 +147,59 @@ export default function ManageMentorAssignments({ onClose }) {
     }
 
     try {
+
       await api.post("/mentor-mapping/assign", {
         college: formData.college,
         course: formData.course,
-        year: Number(formData.year),
-        section: formData.section.toUpperCase(),
+        year: yearNumber,
+        section: normalizedSection,
         mentor_ids: selectedMentors
       });
 
       alert("✅ Mentors assigned successfully");
+
+      /* reset form */
+
       setSelectedMentors([]);
-      fetchInitialData(); // refresh assignment info
+
+      setFormData({
+        college: hodProfile.college,
+        course: "",
+        year: "",
+        section: "A"
+      });
+
+      fetchInitialData();
 
     } catch (err) {
-      // Try to show backend error message if available
-      const backendMsg = err.response?.data?.detail || err.response?.data?.message || err.message;
+
+      const backendMsg =
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        err.message;
+
       alert(backendMsg || "Mentor assignment failed");
     }
   };
 
+  /* ================= LOADING ================= */
+
   if (loading) {
-    return <div className="p-6 text-center">Loading...</div>;
+    return (
+      <div className="p-6 text-center">
+        Loading...
+      </div>
+    );
   }
 
   /* ================= UI ================= */
+
   return (
+
     <div className="relative bg-white dark:bg-gray-800 rounded-3xl shadow-lg border p-8">
 
-      {/* ❌ CLOSE */}
+      {/* CLOSE BUTTON */}
+
       <button
         onClick={onClose}
         className="absolute top-4 right-4 text-2xl font-bold text-gray-500 hover:text-red-600"
@@ -153,42 +214,64 @@ export default function ManageMentorAssignments({ onClose }) {
       <form onSubmit={handleSubmit} className="space-y-6">
 
         {/* COURSE + YEAR */}
+
         <div className="grid grid-cols-2 gap-4">
+
           <select
             value={formData.course}
             onChange={(e) =>
-              setFormData({ ...formData, course: e.target.value })
+              setFormData({
+                ...formData,
+                course: e.target.value
+              })
             }
             className="px-4 py-3 rounded-xl border font-semibold"
             required
           >
             <option value="">Select Course</option>
-            {hodProfile.courses.map((c) => (
-              <option key={c} value={c}>{c}</option>
+
+            {hodProfile.courses?.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
+
           </select>
 
           <select
             value={formData.year}
             onChange={(e) =>
-              setFormData({ ...formData, year: e.target.value })
+              setFormData({
+                ...formData,
+                year: e.target.value
+              })
             }
             className="px-4 py-3 rounded-xl border font-semibold"
             required
           >
+
             <option value="">Select Year</option>
+
             {[1, 2, 3, 4].map((y) => (
-              <option key={y} value={y}>Year {y}</option>
+              <option key={y} value={y}>
+                Year {y}
+              </option>
             ))}
+
           </select>
+
         </div>
 
         {/* SECTION */}
+
         <input
           type="text"
           value={formData.section}
           onChange={(e) =>
-            setFormData({ ...formData, section: e.target.value.toUpperCase() })
+            setFormData({
+              ...formData,
+              section: e.target.value.toUpperCase()
+            })
           }
           className="w-full px-4 py-3 rounded-xl border font-semibold"
           placeholder="Section"
@@ -196,57 +279,78 @@ export default function ManageMentorAssignments({ onClose }) {
         />
 
         {/* MENTOR LIST */}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-  {mentors
-    .filter(m => m._id !== hodProfile._id) // ❌ hide self
-    .map((m) => {
 
-      const isHOD = isHODFaculty(m);
-      const isDisabled = isHOD;
+          {mentors
+            .filter((m) => m._id !== hodProfile._id)
+            .map((m) => {
 
-      return (
-        <label
-          key={m._id}
-          className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer
-            ${isDisabled
-              ? "bg-gray-200 border-gray-300 cursor-not-allowed opacity-70"
-              : selectedMentors.includes(m._id)
-              ? "bg-green-100 border-green-400"
-              : "bg-gray-50 dark:bg-gray-700"
-            }`}
-        >
-          <input
-            type="checkbox"
-            disabled={isDisabled}
-            checked={selectedMentors.includes(m._id)}
-            onChange={() => !isDisabled && toggleMentorSelection(m._id)}
-          />
+              const isHOD = isHODFaculty(m);
 
-          <div>
-            <div className="font-semibold">
-              {m.name} ({m._id})
-            </div>
+              const isDisabled =
+                isHOD ||
+                (!selectedMentors.includes(m._id) &&
+                  selectedMentors.length >= 2);
 
-            {/* 🟡 Show HOD info */}
-            {isDisabled && (
-              <div className="text-xs text-red-600 mt-1 font-medium">
-                Assigned as HOD for{" "}
-                {m.years.join(", ")} – {m.courses.join(", ")}
-              </div>
-            )}
+              return (
 
-            {/* 🟢 Mentor assignments */}
-            {mentorAssignments[m._id] && !isDisabled && (
-              <div className="text-xs text-gray-600 mt-1">
-                Assigned as Mentor to:{" "}
-                {mentorAssignments[m._id].join(" | ")}
-              </div>
-            )}
-          </div>
-        </label>
-      );
-    })}
-</div>
+                <label
+                  key={m._id}
+                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer
+                    ${isDisabled
+                      ? "bg-gray-200 border-gray-300 cursor-not-allowed opacity-70"
+                      : selectedMentors.includes(m._id)
+                      ? "bg-green-100 border-green-400"
+                      : "bg-gray-50 dark:bg-gray-700"
+                    }`}
+                >
+
+                  <input
+                    type="checkbox"
+                    disabled={isDisabled}
+                    checked={selectedMentors.includes(m._id)}
+                    onChange={() =>
+                      toggleMentorSelection(m._id)
+                    }
+                  />
+
+                  <div>
+
+                    <div className="font-semibold">
+                      {m.name} ({m._id})
+                    </div>
+
+                    {/* HOD INFO */}
+
+                    {isHOD && (
+                      <div className="text-xs text-red-600 mt-1 font-medium">
+                        Assigned as HOD for{" "}
+                        {m.years?.join(", ") || "N/A"} –{" "}
+                        {m.courses?.join(", ") || "N/A"}
+                      </div>
+                    )}
+
+                    {/* EXISTING MENTOR ASSIGNMENTS */}
+
+                    {mentorAssignments[m._id] && !isHOD && (
+                      <div className="text-xs text-gray-600 mt-1">
+                        Assigned as Mentor to:{" "}
+                        {mentorAssignments[m._id].join(" | ")}
+                      </div>
+                    )}
+
+                  </div>
+
+                </label>
+
+              );
+
+            })}
+
+        </div>
+
+        {/* SUBMIT */}
 
         <button
           type="submit"
@@ -254,7 +358,10 @@ export default function ManageMentorAssignments({ onClose }) {
         >
           Assign Mentors
         </button>
+
       </form>
+
     </div>
+
   );
 }
