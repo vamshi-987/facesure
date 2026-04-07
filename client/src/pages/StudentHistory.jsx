@@ -26,6 +26,8 @@ export default function StudentHistory() {
           mentor_remark: r.mentor_remark,
           mentor_parent_contacted: r.mentor_parent_contacted,
           hod_name: r.hod_name,
+          approve_on_behalf_of_hod: !!r.approve_on_behalf_of_hod,
+          delegate_comment: r.delegate_comment,
           semester: r.semester,
           academic_year: r.academic_year,
           request_time: r.request_time,
@@ -155,7 +157,21 @@ export default function StudentHistory() {
                               {r.mentor_remark && <div className="text-xs text-gray-500 italic">{r.mentor_remark}</div>}
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{r.hod_name || "—"}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="space-y-1">
+                              <div>{r.hod_name || "—"}</div>
+                              {r.approve_on_behalf_of_hod && (
+                                <div className="text-xs text-amber-700 dark:text-amber-300">
+                                  Approved on behalf of HOD by {r.mentor_name || "Mentor"}
+                                </div>
+                              )}
+                              {r.delegate_comment && (
+                                <div className="text-xs italic text-gray-500 dark:text-gray-400">
+                                  "{r.delegate_comment}"
+                                </div>
+                              )}
+                            </div>
+                          </td>
                           <td className="px-6 py-4">
                             <span
                               className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide ${

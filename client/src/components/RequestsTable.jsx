@@ -24,7 +24,9 @@ export default function RequestsTable({
     request: null,
     action: null,
     comment: "",
+    delegateComment: "",
     parentContacted: false,
+    approveOnBehalfOfHod: false,
   });
 
   const [studentModal, setStudentModal] = useState({
@@ -65,8 +67,20 @@ export default function RequestsTable({
   }, [url, mode]);
 
   const handleMentorAction = async () => {
-    const { request, action, comment } = mentorModal;
+    const { request, action, comment, delegateComment, approveOnBehalfOfHod } = mentorModal;
     if (!request || !action || !mentorInfo) return;
+
+    if (action === "approve" && !comment.trim()) {
+      setToast("Comment is required.");
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    if (action === "approve" && approveOnBehalfOfHod && !delegateComment.trim()) {
+      setToast("Please explain why approved on behalf of HOD.");
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
 
     try {
       await api.post(
@@ -75,7 +89,13 @@ export default function RequestsTable({
           mentor_id: mentorInfo.id,
           mentor_name: mentorInfo.name,
           remark: comment,
+          delegate_comment:
+            action === "approve" && approveOnBehalfOfHod
+              ? delegateComment
+              : null,
           parent_contacted: mentorModal.parentContacted,
+          approve_on_behalf_of_hod:
+            action === "approve" ? !!approveOnBehalfOfHod : false,
         }
       );
 
@@ -90,7 +110,9 @@ export default function RequestsTable({
         request: null,
         action: null,
         comment: "",
+        delegateComment: "",
         parentContacted: false,
+        approveOnBehalfOfHod: false,
       });
       fetchRequests();
       setTimeout(() => setToast(null), 2500);
@@ -353,7 +375,9 @@ export default function RequestsTable({
                                 action: "approve",
                                 request: r,
                                 comment: "",
+                                delegateComment: "",
                                 parentContacted: false,
+                                approveOnBehalfOfHod: false,
                               })
                             }
                             className="px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700"
@@ -370,7 +394,9 @@ export default function RequestsTable({
                                 action: "reject",
                                 request: r,
                                 comment: "",
+                                delegateComment: "",
                                 parentContacted: false,
+                                approveOnBehalfOfHod: false,
                               })
                             }
                             className="px-3 py-1 rounded text-white bg-red-600 hover:bg-red-700"
@@ -661,7 +687,21 @@ export default function RequestsTable({
                                   </span>
                                 </td>
                                 <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 break-words max-w-[120px]">{h.mentor_name || '—'}</td>
-                                <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 break-words max-w-[120px]">{h.hod_name || '—'}</td>
+                                <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 break-words max-w-[220px]">
+                                  <div className="space-y-1">
+                                    <div>{h.hod_name || '—'}</div>
+                                    {h.approve_on_behalf_of_hod && (
+                                      <div className="text-xs text-amber-700 dark:text-amber-300">
+                                        Approved on behalf of HOD by {h.mentor_name || 'Mentor'}
+                                      </div>
+                                    )}
+                                    {h.delegate_comment && (
+                                      <div className="text-xs italic text-gray-500 dark:text-gray-400">
+                                        "{h.delegate_comment}"
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -725,20 +765,54 @@ export default function RequestsTable({
                 </p>
               )}
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-semibold mb-2 dark:text-white">Comment <span className="text-red-500">*</span></label>
-              <textarea
-                value={mentorModal.comment}
-                onChange={(e) =>
-                  setMentorModal({ ...mentorModal, comment: e.target.value })
-                }
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                rows="3"
-                placeholder="Enter your comment..."
-              />
-            </div>
             {mentorModal.action === "approve" && (
               <div className="mb-6">
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold mb-2 dark:text-white">Comment <span className="text-red-500">*</span></label>
+                  <textarea
+                    value={mentorModal.comment}
+                    onChange={(e) =>
+                      setMentorModal({ ...mentorModal, comment: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                    rows="3"
+                    placeholder="Enter your comment..."
+                  />
+                </div>
+
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+                  <label className="flex items-center gap-2 text-sm font-semibold dark:text-white">
+                    <input
+                      type="checkbox"
+                      checked={mentorModal.approveOnBehalfOfHod === true}
+                      onChange={(e) =>
+                        setMentorModal({
+                          ...mentorModal,
+                          approveOnBehalfOfHod: e.target.checked,
+                        })
+                      }
+                      className="mr-1"
+                    />
+                    Approve on behalf of HOD (directly to guard)
+                  </label>
+                  {mentorModal.approveOnBehalfOfHod && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-semibold mb-2 text-amber-900 dark:text-amber-200">
+                        Why approved on behalf of HOD <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={mentorModal.delegateComment}
+                        onChange={(e) =>
+                          setMentorModal({ ...mentorModal, delegateComment: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                        rows="3"
+                        placeholder="Enter why this was approved on behalf of HOD..."
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <label className="block text-sm font-semibold mb-2 dark:text-white">Parents Contacted?</label>
                 <div className="flex gap-4">
                   <label className="flex items-center dark:text-white">
@@ -768,6 +842,22 @@ export default function RequestsTable({
                 </div>
               </div>
             )}
+
+            {mentorModal.action === "reject" && (
+              <div className="mb-4">
+                <label className="block text-sm font-semibold mb-2 dark:text-white">Comment <span className="text-red-500">*</span></label>
+                <textarea
+                  value={mentorModal.comment}
+                  onChange={(e) =>
+                    setMentorModal({ ...mentorModal, comment: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                  rows="3"
+                  placeholder="Enter your comment..."
+                />
+              </div>
+            )}
+
             <div className="flex justify-end gap-3">
               <button
                 onClick={() =>
@@ -776,7 +866,9 @@ export default function RequestsTable({
                     request: null,
                     action: null,
                     comment: "",
+                    delegateComment: "",
                     parentContacted: false,
+                    approveOnBehalfOfHod: false,
                   })
                 }
                 className="px-4 py-2 bg-gray-300 dark:bg-gray-600 dark:text-white rounded-lg hover:bg-gray-400"
@@ -786,12 +878,12 @@ export default function RequestsTable({
               <button
                 onClick={handleMentorAction}
                 disabled={
-                  (mentorModal.action === "approve" && (!mentorModal.comment.trim() || mentorModal.parentContacted !== true)) ||
+                  (mentorModal.action === "approve" && (!mentorModal.comment.trim() || (mentorModal.approveOnBehalfOfHod && !mentorModal.delegateComment.trim()) || mentorModal.parentContacted !== true)) ||
                   (mentorModal.action === "reject" && !mentorModal.comment.trim())
                 }
                 className={`px-4 py-2 text-white rounded-lg ${
                   mentorModal.action === "approve"
-                    ? (!mentorModal.comment.trim() || mentorModal.parentContacted !== true
+                    ? ((!mentorModal.comment.trim() || (mentorModal.approveOnBehalfOfHod && !mentorModal.delegateComment.trim()) || mentorModal.parentContacted !== true)
                         ? "bg-green-300 cursor-not-allowed"
                         : "bg-green-600 hover:bg-green-700")
                     : (!mentorModal.comment.trim()
@@ -799,7 +891,11 @@ export default function RequestsTable({
                         : "bg-red-600 hover:bg-red-700")
                 }`}
               >
-                {mentorModal.action === "approve" ? "Approve" : "Reject"}
+                {mentorModal.action === "approve"
+                  ? mentorModal.approveOnBehalfOfHod
+                    ? "Approve on behalf of HOD"
+                    : "Approve"
+                  : "Reject"}
               </button>
             </div>
           </div>
