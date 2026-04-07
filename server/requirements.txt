@@ -51,3 +51,4 @@ cryptography==42.0.7
 hiredis==2.3.2
 pyotp==2.9.0
 qrcode==7.4.2
+torch==2.3.1

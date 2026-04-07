@@ -1,4 +1,3 @@
-import math
 from datetime import datetime
 from fastapi import HTTPException
 
@@ -86,27 +85,21 @@ def assign_mentors_service(payload):
                 )
 
             # ------------------------------------------
-            # 6️⃣ Create new mappings (roll split)
+            # 6️⃣ Create new mappings (both mentors for all students)
             # ------------------------------------------
-            half = math.ceil(len(students) / 2)
             mappings = []
 
-            for i, student in enumerate(students):
-                mentor_id = (
-                    payload.mentor_ids[0]
-                    if i < half
-                    else payload.mentor_ids[1]
-                )
-
-                mappings.append({
-                    "student_id": str(student["_id"]),  # Ensure string
-                    "mentor_id": mentor_id,
-                    "college": payload.college,
-                    "year": payload.year,
-                    "course": payload.course,
-                    "section": payload.section,
-                    "created_at": datetime.utcnow()
-                })
+            for student in students:
+                for mentor_id in payload.mentor_ids:
+                    mappings.append({
+                        "student_id": str(student["_id"]),  # Ensure string
+                        "mentor_id": mentor_id,
+                        "college": payload.college,
+                        "year": payload.year,
+                        "course": payload.course,
+                        "section": payload.section,
+                        "created_at": datetime.utcnow()
+                    })
 
             insert_student_mentor_mappings(mappings, session=s)
 

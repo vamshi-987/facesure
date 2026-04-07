@@ -3,32 +3,55 @@
 # ===============================================================
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
+from config import Config
+import threading
 
 # Thread pool for CPU-intensive face processing
-face_executor = ThreadPoolExecutor(max_workers=4)
+face_executor = ThreadPoolExecutor(max_workers=Config.FACE_EXECUTOR_MAX_WORKERS)
+_inference_semaphore = threading.BoundedSemaphore(Config.FACE_INFERENCE_CONCURRENCY)
 
-def extract_embedding_and_landmarks(img):
-    faces = face_model.get(img, max_num=1)
-    if faces:
-        return faces[0].embedding, faces[0].landmark_3d_68
-    return None, None
+
+def _run_face_get(img, max_num=1):
+    if not _inference_semaphore.acquire(timeout=Config.FACE_INFERENCE_TIMEOUT_SECONDS):
+        raise HTTPException(
+            status_code=503,
+            detail="Face service busy. Please retry in a moment."
+        )
+    try:
+        return face_model.get(img, max_num=max_num)
+    finally:
+        _inference_semaphore.release()
 
 async def extract_embedding_async(img):
     """Run face extraction in thread pool"""
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        face_executor,
-        extract_embedding_and_landmarks,
-        img
-    )
+    try:
+        return await asyncio.wait_for(
+            loop.run_in_executor(
+                face_executor,
+                extract_embedding_and_landmarks,
+                img
+            ),
+            timeout=Config.FACE_INFERENCE_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="Face processing timed out. Please retry."
+        )
 import cv2
 import base64
 import numpy as np
+import importlib
 from datetime import datetime
 from pymongo.errors import PyMongoError
 from fastapi import HTTPException, status
 from utils.audit_log import logger
 import traceback
+
+torch = None
+if importlib.util.find_spec("torch") is not None:
+    import torch  # type: ignore[import-not-found]
 
 from insightface.app import FaceAnalysis
 
@@ -69,7 +92,6 @@ from data.face_vectors_repo import (
 # ===============================================================
 # MODEL INITIALIZATION (Singleton with GPU support)
 # ===============================================================
-import threading
 
 class FaceModelSingleton:
     _instance = None
@@ -85,11 +107,14 @@ class FaceModelSingleton:
 
     def _initialize_model(self):
         try:
-            import torch
-            ctx_id = 0 if torch.cuda.is_available() else -1
+            # If torch is unavailable, run InsightFace in CPU mode.
+            use_gpu = bool(torch is not None and torch.cuda.is_available())
+            ctx_id = 0 if use_gpu else -1
+            providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if use_gpu else ['CPUExecutionProvider']
+
             self.model = FaceAnalysis(
                 name="buffalo_l",
-                providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+                providers=providers
             )
             self.model.prepare(ctx_id=ctx_id, det_size=(640, 640))
             print(f"✅ Face model loaded on {'GPU' if ctx_id == 0 else 'CPU'}")
@@ -126,7 +151,30 @@ def decode_image(b64):
         img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if img is None:
             raise ValueError()
+
+        h, w = img.shape[:2]
+        if w < Config.FACE_MIN_WIDTH or h < Config.FACE_MIN_HEIGHT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Image too small. Minimum {Config.FACE_MIN_WIDTH}x{Config.FACE_MIN_HEIGHT} required"
+            )
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        brightness = float(np.mean(gray))
+        if brightness < Config.FACE_MIN_BRIGHTNESS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Image too dark. Improve lighting and retry"
+            )
+        if brightness > Config.FACE_MAX_BRIGHTNESS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Image too bright. Reduce glare/flash and retry"
+            )
+
         return img, None
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -138,7 +186,13 @@ def decode_image(b64):
 # 🚨 FACE COUNT ENFORCEMENT (NEW)
 # ===============================================================
 def ensure_single_face(img):
-    faces = face_model.get(img,max_num=1)
+    if face_model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Face service unavailable: model failed to initialize"
+        )
+
+    faces = _run_face_get(img, max_num=1)
 
     if not faces:
         raise HTTPException(

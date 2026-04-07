@@ -20,6 +20,8 @@ class Request(BaseModel):
     mentor_name: Optional[str] = None
     mentor_remark: Optional[str] = None
     mentor_action_time: Optional[datetime] = None
+    approve_on_behalf_of_hod: Optional[bool] = False
+    delegate_comment: Optional[str] = None
 
     hod_id: Optional[str] = None
     hod_name: Optional[str] = None

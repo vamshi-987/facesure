@@ -13,6 +13,13 @@ services:
       - mongo 
     environment:
       - SMS_ENABLED=true
+      - FACE_EXECUTOR_MAX_WORKERS=4
+      - FACE_INFERENCE_CONCURRENCY=2
+      - FACE_INFERENCE_TIMEOUT_SECONDS=8
+      - FACE_MIN_WIDTH=320
+      - FACE_MIN_HEIGHT=320
+      - FACE_MIN_BRIGHTNESS=35
+      - FACE_MAX_BRIGHTNESS=220
       # Fast2SMS (no DLT / no 6-char sender ID): use route "q" (Quick SMS). Get API key at fast2sms.com
       - SMS_PROVIDER=fast2sms
       - FAST2SMS_API_KEY=fRHx2g4QjAaTzp6qSMd1svIkPLFU5VtnC3wyblXheiB09DJOrW50eSv6M8NUu4FfxDpH3BL2EzsqZWlI

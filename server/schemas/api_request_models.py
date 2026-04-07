@@ -189,6 +189,17 @@ class MentorActionBody(BaseModel):
     mentor_name: str
     remark: str
     parent_contacted: Optional[bool] = False
+    approve_on_behalf_of_hod: Optional[bool] = False
+    delegate_comment: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_delegate_approve_comment(self):
+        if self.approve_on_behalf_of_hod:
+            if not (self.remark and self.remark.strip()):
+                raise ValueError("Comment is required")
+            if not (self.delegate_comment and self.delegate_comment.strip()):
+                raise ValueError("Why approved on behalf of HOD is required")
+        return self
 
 
 # ================= REQUEST FILTER (CUSTOM VIEW) =================

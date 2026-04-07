@@ -107,7 +107,9 @@ def mentor_approve(
         payload.mentor_id,
         payload.mentor_name,
         payload.remark,
-        payload.parent_contacted
+        payload.parent_contacted,
+        payload.approve_on_behalf_of_hod,
+        payload.delegate_comment,
     )
 
 

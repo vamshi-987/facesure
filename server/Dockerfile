@@ -1,5 +1,7 @@
 FROM python:3.10-slim
 
+ENV PYTHONUNBUFFERED=1
+
 # ---------- System dependencies ----------
 RUN apt-get update && apt-get install -y \
     build-essential \

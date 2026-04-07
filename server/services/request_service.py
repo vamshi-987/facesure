@@ -31,7 +31,7 @@ from data.student_mentor_repo import get_students_for_mentor
 from data.student_repo import get_student_by_id
 from data.faces_repo import get_face_by_user
 from data.admin_repo import get_admin_by_id
-from data.faculty_repo import get_faculty_by_id, get_hods_by_college, get_mentors_by_college, get_all_mentors
+from data.faculty_repo import get_faculty_by_id, get_hod_by_id, get_hods_by_college, get_mentors_by_college, get_all_mentors
 from data.student_mentor_repo import get_mentors_for_hod_scope
 
 # ==========================================================
@@ -248,7 +248,15 @@ def service_get_mentor_todays_requests(mentor_id: str):
 # ==========================================================
 # MENTOR – APPROVE / REJECT (WITH COMMENT)
 # ==========================================================
-def mentor_approve_request(request_id, mentor_id, mentor_name, remark, parent_contacted=False):
+def mentor_approve_request(
+    request_id,
+    mentor_id,
+    mentor_name,
+    remark,
+    parent_contacted=False,
+    approve_on_behalf_of_hod=False,
+    delegate_comment=None,
+):
     req = get_request_by_id(request_id)
 
     if not req:
@@ -282,14 +290,50 @@ def mentor_approve_request(request_id, mentor_id, mentor_name, remark, parent_co
             detail=f"Cannot approve: {detail_msg}"
         )
 
-    update_request(request_id, {
-        "status": APPROVED_BY_MENTOR,
+    if approve_on_behalf_of_hod and not str(remark or "").strip():
+        raise HTTPException(400, "Comment is required")
+
+    if approve_on_behalf_of_hod and not str(delegate_comment or "").strip():
+        raise HTTPException(400, "Why approved on behalf of HOD is required")
+
+    update_doc = {
         "mentor_id": mentor_id,
         "mentor_name": mentor_name,
-        "mentor_remark": remark,   # ✅ aligned
+        "mentor_remark": remark,
         "parent_contacted": parent_contacted,
-        "mentor_action_time": datetime.utcnow()
-    })
+        "mentor_action_time": datetime.utcnow(),
+        "approve_on_behalf_of_hod": bool(approve_on_behalf_of_hod),
+    }
+
+    if approve_on_behalf_of_hod:
+        student_id = str(req.get("student_id", ""))
+        hod_mappings = get_hods_for_student(student_id)
+        if not hod_mappings:
+            raise HTTPException(404, "No HOD assigned for this student")
+
+        hod_id = str(hod_mappings[0].get("hod_id", ""))
+        if not hod_id:
+            raise HTTPException(404, "Invalid HOD mapping for this student")
+
+        hod_doc = get_hod_by_id(hod_id)
+        hod_name = hod_doc.get("name", "") if hod_doc else ""
+
+        # Skip HOD stage and make request visible to guard directly.
+        update_doc.update({
+            "status": APPROVED,
+            "approval_time": datetime.utcnow(),
+            "hod_id": hod_id,
+            "hod_name": hod_name,
+            "delegate_comment": str(delegate_comment).strip(),
+        })
+    else:
+        update_doc.update({
+            "status": APPROVED_BY_MENTOR,
+            "approval_time": None,
+            "delegate_comment": None,
+        })
+
+    update_request(request_id, update_doc)
 
     return success("Approved by mentor")
 
